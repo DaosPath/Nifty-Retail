@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/app-logo.svg" />
+    <link rel="apple-touch-icon" href="/app-logo.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nifty Retail</title>
+    <script>
+      (function () {
+        var theme = localStorage.getItem("niftypos-theme");
+        if (theme !== "light" && theme !== "dark") theme = "dark";
+        document.documentElement.setAttribute("data-theme", theme);
+        document.documentElement.style.backgroundColor = theme === "light" ? "#eef1f6" : "#0f0f12";
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root">
+      <div id="boot-fallback" style="padding:40px;font-family:system-ui,sans-serif;color:#555;text-align:center;">
+        <img src="/app-logo.svg" alt="" width="56" height="56" style="display:block;margin:0 auto 16px;border-radius:14px;" />
+        Cargando Nifty Retail…
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

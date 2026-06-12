@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: nifty-minio
+    ports:
+      - "9090:9000" # MinIO API Port (Host: 9090)
+      - "9091:9001" # MinIO Console Port (Host: 9091)
+    volumes:
+      - minio_data:/data
+    environment:
+      MINIO_ROOT_USER: niftyadmin
+      MINIO_ROOT_PASSWORD: niftypastword123
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
+    command: server /data --console-address ":9001"
+    restart: always
+
+  # Auto-configures the "products" bucket as public on launch
+  mc:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until /usr/bin/mc alias set myminio http://minio:9000 niftyadmin niftypastword123; do echo 'Waiting for MinIO...'; sleep 1; done;
+      if ! /usr/bin/mc ls myminio/products > /dev/null 2>&1; then
+        /usr/bin/mc mb myminio/products;
+      fi;
+      /usr/bin/mc anonymous set public myminio/products;
+      echo 'MinIO bucket products is ready and public!';
+      exit 0;
+      "
+
+volumes:
+  minio_data:

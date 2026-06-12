@@ -11,16 +11,31 @@ interface LogoIconProps {
 }
 
 export const LogoIcon: React.FC<LogoIconProps> = ({ size = 28, className, style }) => (
-  <img
-    src="/app-logo.svg"
-    alt=""
-    aria-hidden="true"
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 64 64"
+    fill="none"
+    role="img"
+    aria-label="Nifty Retail"
     width={size}
     height={size}
     className={["app-logo", className].filter(Boolean).join(" ")}
     style={style}
-    draggable={false}
-  />
+  >
+    <rect width="64" height="64" rx="14" fill="url(#nr-bg-grad-i)"/>
+    <path d="M16 24h32l-3 24a3 3 0 0 1-3 2.8H22a3 3 0 0 1-3-2.8L16 24z" fill="rgba(255,255,255,0.15)"/>
+    <path d="M16 24h32l-3 24a3 3 0 0 1-3 2.8H22a3 3 0 0 1-3-2.8L16 24z" stroke="rgba(255,255,255,0.9)" strokeWidth="2.2" fill="none" strokeLinejoin="round"/>
+    <path d="M24 24v-6a8 8 0 0 1 16 0v6" stroke="rgba(255,255,255,0.85)" strokeWidth="2.4" strokeLinecap="round" fill="none"/>
+    <path d="M27 29h5l-3 8h5l-7 11 2-7h-5l3-12z" fill="#ffed00"/>
+    <circle cx="40" cy="35" r="2.8" fill="rgba(255,255,255,0.9)"/>
+    <defs>
+      <linearGradient id="nr-bg-grad-i" x1="0" y1="64" x2="64" y2="0" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#9b0d5e"/>
+        <stop offset="0.45" stopColor="#c2117a"/>
+        <stop offset="1" stopColor="#1a6fa0"/>
+      </linearGradient>
+    </defs>
+  </svg>
 );
 
 export const CartIcon: React.FC<IconProps> = ({ size = 20, ...props }) => (

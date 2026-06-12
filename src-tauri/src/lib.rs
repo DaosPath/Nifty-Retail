@@ -5,7 +5,7 @@ use db::{
   try_migrate_from_legacy_locations, LoadDbResponse, SaveDbResponse, DbHealth,
 };
 use std::fs;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 #[tauri::command]
 fn load_db(app: AppHandle) -> Result<LoadDbResponse, String> {
@@ -49,6 +49,14 @@ fn read_binary_file(path: String) -> Result<Vec<u8>, String> {
 pub fn run() {
   tauri::Builder::default()
     .setup(|app| {
+      // Set the window icon from icons/icon.png for taskbar + titlebar
+      let icon_bytes = include_bytes!("../icons/icon.png");
+      if let Ok(icon) = tauri::image::Image::from_bytes(icon_bytes) {
+        for (_label, window) in app.webview_windows() {
+          let _ = window.set_icon(icon.clone());
+        }
+      }
+
       if cfg!(debug_assertions) {
         app.handle().plugin(
           tauri_plugin_log::Builder::default()

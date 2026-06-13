@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../i18n";
+import { getCategoryAccent } from "../utils/categoryAccent";
 import { getDefaultWarehouse, getLocalizedWarehouseName } from "../utils/catalogHelpers";
 import type { Category, CatalogTab, StorageLocation, Warehouse } from "../types/catalog";
 import type { Manufacturer } from "../types/inventory";
 import type { Supplier } from "../types/stock";
 import { PlusIcon, EditIcon } from "./Icons";
+import { SelectField, type SelectOption } from "./SelectField";
 
 interface CatalogManagerProps {
   categories: Category[];
@@ -45,6 +47,16 @@ const emptySupplier = (): Partial<Supplier> => ({
   notes: "",
   active: true,
 });
+
+const categoryAccentStyle = (name: string): React.CSSProperties => {
+  const accent = getCategoryAccent(name);
+  return {
+    "--entity-accent-bg": accent.bg,
+    "--entity-accent-border": accent.border,
+    "--entity-accent-text": accent.text,
+    "--entity-accent-glow": accent.glow,
+  } as React.CSSProperties;
+};
 
 const emptyManufacturer = (): Partial<Manufacturer> => ({
   name: "",
@@ -137,6 +149,11 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
   const activeCategories = useMemo(
     () => [...categories].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
     [categories]
+  );
+
+  const categoryMergeOptions = useMemo<SelectOption[]>(
+    () => activeCategories.map((c) => ({ value: c.id, label: c.name })),
+    [activeCategories]
   );
 
   const activeSuppliers = useMemo(
@@ -431,9 +448,10 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
 
       <div className={`catalog-toolbar catalog-toolbar--${tab}`}>
         <div className="catalog-toolbar-main">
-          <p className="catalog-toolbar-kicker">{activeTabMeta.label}</p>
+          <p className="catalog-toolbar-kicker">{activeTabMeta.hint}</p>
           <h3>{activeTabMeta.label}</h3>
-          <p>
+          <p className="catalog-toolbar-meta">
+            <span className="catalog-toolbar-count">{rowCount}</span>
             {rowCount === 1
               ? t("catalog.records", { count: rowCount })
               : t("catalog.records_plural", { count: rowCount })}
@@ -465,17 +483,29 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
           <div className="catalog-merge-fields">
             <div>
               <label>{t("catalog.mergeTarget")}</label>
-              <select className="catalog-modal-input" value={mergeTargetId} onChange={(e) => setMergeTargetId(e.target.value)}>
-                <option value="">{t("common.selectPlaceholder")}</option>
-                {activeCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <SelectField
+                label={t("catalog.mergeTarget")}
+                value={mergeTargetId}
+                options={categoryMergeOptions}
+                onChange={setMergeTargetId}
+                placeholder={t("common.selectPlaceholder")}
+                clearable
+                hideLabel
+                accent="cyan"
+              />
             </div>
             <div>
               <label>{t("catalog.mergeSource")}</label>
-              <select className="catalog-modal-input" value={mergeSourceId} onChange={(e) => setMergeSourceId(e.target.value)}>
-                <option value="">{t("common.selectPlaceholder")}</option>
-                {activeCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <SelectField
+                label={t("catalog.mergeSource")}
+                value={mergeSourceId}
+                options={categoryMergeOptions}
+                onChange={setMergeSourceId}
+                placeholder={t("common.selectPlaceholder")}
+                clearable
+                hideLabel
+                accent="magenta"
+              />
             </div>
             <button type="button" className="btn btn-primary btn-sm catalog-merge-confirm" onClick={handleMerge}>
               {t("catalog.mergeConfirm")}
@@ -484,39 +514,54 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
         </div>
       )}
 
-      <section className="catalog-panel card-glass">
+      <section className={`catalog-panel card-glass catalog-panel--${tab}`}>
         {tab === "categorias" && (
           <div className="catalog-entity-grid catalog-entity-grid--cat">
-            {activeCategories.map((c) => (
-              <article className="catalog-entity-card catalog-entity-card--cat" key={c.id}>
-                <div className="catalog-entity-card-top">
-                  <div className="catalog-list-avatar catalog-list-avatar--cat">{c.name.charAt(0).toUpperCase()}</div>
-                  <span className={`catalog-badge ${c.active ? "ok" : "off"}`}>
-                    {c.active ? t("catalog.active") : t("catalog.inactive")}
-                  </span>
-                </div>
-                <div className="catalog-entity-card-body">
-                  <strong>{c.name}</strong>
-                  <span>{c.description || "—"}</span>
-                  <code className="catalog-entity-slug">{c.slug}</code>
-                </div>
-                <div className="catalog-entity-card-actions">
-                  <button type="button" className="catalog-icon-btn" title={t("catalog.edit")} onClick={() => openEditCategory(c)}>
-                    <EditIcon size={15} />
-                  </button>
-                  <button
-                    type="button"
-                    className="catalog-icon-btn catalog-icon-btn--danger"
-                    title={t("catalog.delete")}
-                    onClick={() => {
-                      if (confirm(t("catalog.deleteCategoryConfirm", { name: c.name }))) onDeleteCategory(c.id);
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-              </article>
-            ))}
+            {activeCategories.map((c) => {
+              const desc = c.description?.trim();
+              const showDesc = Boolean(desc && desc.toLowerCase() !== c.slug.toLowerCase());
+              return (
+                <article
+                  className="catalog-entity-card catalog-entity-card--cat"
+                  key={c.id}
+                  style={categoryAccentStyle(c.name)}
+                >
+                  <div className="catalog-entity-card-accent" aria-hidden="true" />
+                  <div className="catalog-entity-card-header">
+                    <div className="catalog-entity-card-identity">
+                      <div className="catalog-list-avatar catalog-list-avatar--accent">
+                        {c.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="catalog-entity-card-titles">
+                        <strong>{c.name}</strong>
+                        {showDesc ? <span className="catalog-entity-desc">{desc}</span> : null}
+                      </div>
+                    </div>
+                    <span className={`catalog-badge ${c.active ? "ok" : "off"}`}>
+                      {c.active ? t("catalog.active") : t("catalog.inactive")}
+                    </span>
+                  </div>
+                  <div className="catalog-entity-card-footer">
+                    <code className="catalog-entity-slug">{c.slug}</code>
+                    <div className="catalog-entity-card-actions">
+                      <button type="button" className="catalog-icon-btn" title={t("catalog.edit")} onClick={() => openEditCategory(c)}>
+                        <EditIcon size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        className="catalog-icon-btn catalog-icon-btn--danger"
+                        title={t("catalog.delete")}
+                        onClick={() => {
+                          if (confirm(t("catalog.deleteCategoryConfirm", { name: c.name }))) onDeleteCategory(c.id);
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
 
@@ -677,6 +722,10 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
 
         {rowCount === 0 && tab !== "almacenes" && (
           <div className="catalog-empty">
+            <div className="catalog-empty-icon" aria-hidden="true">
+              <PlusIcon size={22} />
+            </div>
+            <h4>{t("catalog.emptyTitle")}</h4>
             <p>{t("catalog.emptyRecords")}</p>
             <button type="button" className="btn btn-primary btn-sm" onClick={openNewModal}>
               <PlusIcon size={14} /> {t("catalog.createFirst")}

@@ -20,6 +20,7 @@ export interface InventoryTableRowProps {
   nextLotExpiry: string | null;
   nowMs: number;
   noLotsLabel: string;
+  actionsAriaLabel: string;
   editLabel: string;
   lotsLabel: string;
   deleteLabel: string;
@@ -36,6 +37,7 @@ export const InventoryTableRow = memo(
       nextLotExpiry,
       nowMs,
       noLotsLabel,
+      actionsAriaLabel,
       editLabel,
       lotsLabel,
       deleteLabel,
@@ -55,6 +57,9 @@ export const InventoryTableRow = memo(
     ? Math.ceil((new Date(nextLotExpiry).getTime() - nowMs) / (1000 * 60 * 60 * 24))
     : null;
   const isExpirySoon = daysToExpiry !== null && daysToExpiry >= 0 && daysToExpiry <= 45;
+  const categoryTone =
+    p.category.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % 6;
+
   const rowClass = [
     isLowStock ? "inventory-row--low" : "",
     isExpired ? "inventory-row--expired" : isExpirySoon ? "inventory-row--expiring" : "",
@@ -82,7 +87,9 @@ export const InventoryTableRow = memo(
         <span className="inventory-name">{p.name}</span>
       </td>
       <td>
-        <span className="inventory-category-pill">{p.category}</span>
+        <span className={`inventory-category-pill inventory-category-pill--tone-${categoryTone}`}>
+          {p.category}
+        </span>
       </td>
       <td className="inventory-col-manufacturer">
         <span className="inventory-muted">{manufacturerLabel}</span>
@@ -109,33 +116,42 @@ export const InventoryTableRow = memo(
         )}
       </td>
       <td className="inventory-col-actions">
-        <div className="inventory-row-actions">
+        <div className="inventory-action-group" role="group" aria-label={actionsAriaLabel}>
           <button
             type="button"
             className="inventory-action-btn inventory-action-btn--edit"
             title={editLabel}
+            aria-label={editLabel}
             onClick={() => onEdit(p)}
           >
-            <EditIcon size={14} />
-            <span>{editLabel}</span>
+            <span className="inventory-action-btn-icon" aria-hidden="true">
+              <EditIcon size={14} />
+            </span>
+            <span className="inventory-action-label">{editLabel}</span>
           </button>
           <button
             type="button"
             className="inventory-action-btn inventory-action-btn--lots"
             title={lotsLabel}
+            aria-label={lotsLabel}
             onClick={() => onLots(p)}
           >
-            <BookIcon size={14} />
-            <span>{lotsLabel}</span>
+            <span className="inventory-action-btn-icon" aria-hidden="true">
+              <BookIcon size={14} />
+            </span>
+            <span className="inventory-action-label">{lotsLabel}</span>
           </button>
           <button
             type="button"
             className="inventory-action-btn inventory-action-btn--delete"
             title={deleteLabel}
+            aria-label={deleteLabel}
             onClick={() => onDelete(p.code)}
           >
-            <DeleteIcon size={14} />
-            <span>{deleteLabel}</span>
+            <span className="inventory-action-btn-icon" aria-hidden="true">
+              <DeleteIcon size={14} />
+            </span>
+            <span className="inventory-action-label">{deleteLabel}</span>
           </button>
         </div>
       </td>

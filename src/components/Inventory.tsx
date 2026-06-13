@@ -79,6 +79,8 @@ export const Inventory: React.FC<InventoryProps> = ({
   const { t, locale } = useI18n();
   const { formatMoney } = useMoney();
   const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [stockFilter, setStockFilter] = useState<"all" | "low">("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
@@ -411,15 +413,23 @@ export const Inventory: React.FC<InventoryProps> = ({
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const normalizedSearch = deferredSearchTerm.trim().toLowerCase();
 
+  const categoryList = useMemo(() => {
+    const names = new Set(products.map((p) => p.category).filter(Boolean));
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
-    if (!normalizedSearch) return products;
-    return products.filter(
-      (p) =>
+    return products.filter((p) => {
+      if (categoryFilter !== "all" && p.category !== categoryFilter) return false;
+      if (stockFilter === "low" && p.stock > p.minStock) return false;
+      if (!normalizedSearch) return true;
+      return (
         p.name.toLowerCase().includes(normalizedSearch) ||
         p.code.includes(deferredSearchTerm) ||
         p.category.toLowerCase().includes(normalizedSearch)
-    );
-  }, [products, normalizedSearch, deferredSearchTerm]);
+      );
+    });
+  }, [products, normalizedSearch, deferredSearchTerm, categoryFilter, stockFilter]);
 
   const manufacturerNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -504,6 +514,7 @@ export const Inventory: React.FC<InventoryProps> = ({
   const inventoryLabels = useMemo(
     () => ({
       noLots: t("inventory.noLots"),
+      actions: t("inventory.colActions"),
       edit: t("inventory.edit"),
       lots: t("inventory.lots"),
       delete: t("inventory.delete"),
@@ -515,18 +526,26 @@ export const Inventory: React.FC<InventoryProps> = ({
     <>
       <div className="inventory-page">
         <header className="inventory-page-hero card-glass">
+          <div className="inventory-page-hero-accent" aria-hidden="true" />
           <div className="inventory-page-hero-glow" aria-hidden="true" />
-          <div className="inventory-page-hero-main">
-            <div className="inventory-page-hero-icon" aria-hidden="true">
-              <BoxIcon size={26} />
-            </div>
-            <div className="inventory-page-hero-body">
-              <p className="inventory-page-kicker">{t("inventory.pageKicker")}</p>
-              <h2>{t("headers.inventory")}</h2>
-              <p>{t("inventory.pageSubtitle")}</p>
+          <div className="inventory-page-hero-top">
+            <div className="inventory-page-hero-main">
+              <div className="inventory-page-hero-icon" aria-hidden="true">
+                <BoxIcon size={24} />
+              </div>
+              <div className="inventory-page-hero-body">
+                <p className="inventory-page-kicker">{t("inventory.pageKicker")}</p>
+                <h2>{t("headers.inventory")}</h2>
+                <p>{t("inventory.pageSubtitle")}</p>
+              </div>
             </div>
           </div>
-          <div className="inventory-page-stats" role="list" aria-label={t("inventory.statsAria")}>
+          <div className="inventory-page-stats-shell">
+            <div className="inventory-page-stats-head">
+              <span className="inventory-page-stats-dot" aria-hidden="true" />
+              <span>{t("inventory.statsAria")}</span>
+            </div>
+            <div className="inventory-page-stats" role="list" aria-label={t("inventory.statsAria")}>
             <div className="inventory-page-stat inventory-page-stat--total" role="listitem">
               <div className="inventory-page-stat-head">
                 <span className="inventory-page-stat-icon">
@@ -573,10 +592,12 @@ export const Inventory: React.FC<InventoryProps> = ({
               </div>
               <strong className="inventory-page-stat-value">{inventoryStats.categoryCount}</strong>
             </div>
+            </div>
           </div>
         </header>
 
         <div className="inventory-panel card-glass">
+          <div className="inventory-panel-accent" aria-hidden="true" />
           <div className="inventory-toolbar">
             <label className="inventory-search-wrap">
               <SearchIcon size={16} />
@@ -597,6 +618,49 @@ export const Inventory: React.FC<InventoryProps> = ({
                 <PlusIcon size={16} />
                 {t("inventory.registerProduct")}
               </button>
+            </div>
+          </div>
+
+          <div className="inventory-filters">
+            <span className="inventory-filters-label">{t("inventory.filtersLabel")}</span>
+            <div className="inventory-filter-chips">
+              <button
+                type="button"
+                className={`inventory-filter-chip${stockFilter === "all" && categoryFilter === "all" ? " is-active" : ""}`}
+                onClick={() => {
+                  setStockFilter("all");
+                  setCategoryFilter("all");
+                }}
+              >
+                {t("inventory.filterAll")}
+              </button>
+              <button
+                type="button"
+                className={`inventory-filter-chip inventory-filter-chip--warn${stockFilter === "low" ? " is-active" : ""}`}
+                onClick={() => {
+                  setStockFilter("low");
+                  setCategoryFilter("all");
+                }}
+              >
+                <AlertIcon size={12} />
+                {t("inventory.filterLowStock")}
+                {inventoryStats.lowStockCount > 0 && (
+                  <span className="inventory-filter-chip-count">{inventoryStats.lowStockCount}</span>
+                )}
+              </button>
+              {categoryList.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  className={`inventory-filter-chip${categoryFilter === cat ? " is-active" : ""}`}
+                  onClick={() => {
+                    setCategoryFilter(cat);
+                    setStockFilter("all");
+                  }}
+                >
+                  {cat}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -646,6 +710,7 @@ export const Inventory: React.FC<InventoryProps> = ({
                         nextLotExpiry={lotExpiryByProduct.get(p.code) ?? null}
                         nowMs={inventoryNowMs}
                         noLotsLabel={inventoryLabels.noLots}
+                        actionsAriaLabel={inventoryLabels.actions}
                         editLabel={inventoryLabels.edit}
                         lotsLabel={inventoryLabels.lots}
                         deleteLabel={inventoryLabels.delete}

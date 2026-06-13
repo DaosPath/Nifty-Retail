@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useI18n } from "../i18n";
 
 export interface SelectOption {
@@ -15,6 +15,12 @@ interface SelectFieldProps {
   placeholder?: string;
   accent?: "cyan" | "magenta" | "amber";
   disabled?: boolean;
+  size?: "default" | "sm";
+  hideLabel?: boolean;
+  className?: string;
+  id?: string;
+  /** Permite volver al valor vacío (como `<option value="">` en un select nativo). */
+  clearable?: boolean;
 }
 
 function ChevronDown({ open }: { open: boolean }) {
@@ -43,13 +49,27 @@ export const SelectField = memo(function SelectField({
   placeholder,
   accent = "cyan",
   disabled = false,
+  size = "default",
+  hideLabel = false,
+  className = "",
+  id,
+  clearable = false,
 }: SelectFieldProps) {
   const { t } = useI18n();
+  const autoId = useId();
+  const fieldId = id ?? autoId;
   const resolvedPlaceholder = placeholder ?? t("common.selectPlaceholder");
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
 
-  const selected = options.find((o) => o.value === value);
+  const menuOptions = useMemo(() => {
+    if (!clearable || options.some((o) => o.value === "")) {
+      return options;
+    }
+    return [{ value: "", label: resolvedPlaceholder }, ...options];
+  }, [clearable, options, resolvedPlaceholder]);
+
+  const selected = value === "" ? undefined : menuOptions.find((o) => o.value === value);
 
   useEffect(() => {
     const handleOutside = (event: MouseEvent) => {
@@ -61,19 +81,43 @@ export const SelectField = memo(function SelectField({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [open]);
+
+  const rootClass = [
+    "nifty-select-field",
+    `nifty-select-accent-${accent}`,
+    size === "sm" ? "nifty-select-field--sm" : "",
+    open ? "is-open" : "",
+    disabled ? "is-disabled" : "",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div
-      className={`nifty-select-field nifty-select-accent-${accent} ${open ? "is-open" : ""} ${disabled ? "is-disabled" : ""}`}
-      ref={rootRef}
-    >
-      <label className="nifty-select-label">{label}</label>
+    <div className={rootClass} ref={rootRef}>
+      <label
+        className={`nifty-select-label${hideLabel ? " nifty-select-label--sr-only" : ""}`}
+        htmlFor={fieldId}
+      >
+        {label}
+      </label>
       <button
         type="button"
+        id={fieldId}
         className="nifty-select-trigger"
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-labelledby={fieldId}
       >
         <span className="nifty-select-value">
           {selected ? (
@@ -90,7 +134,7 @@ export const SelectField = memo(function SelectField({
 
       {open && (
         <div className="nifty-select-menu" role="listbox">
-          {options.map((option) => (
+          {menuOptions.map((option) => (
             <button
               type="button"
               key={option.value}

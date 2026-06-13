@@ -57,8 +57,10 @@ pub fn run() {
     .setup(|app| {
       // Set the window icon from icons/icon.png for taskbar + titlebar
       let icon_bytes = include_bytes!("../icons/icon.png");
-      if let Ok(icon) = tauri::image::Image::from_bytes(icon_bytes) {
-        for (_label, window) in app.webview_windows() {
+      let window_icon = tauri::image::Image::from_bytes(icon_bytes).ok();
+      for (_label, window) in app.webview_windows() {
+        let _ = window.maximize();
+        if let Some(icon) = window_icon.as_ref() {
           let _ = window.set_icon(icon.clone());
         }
       }

@@ -3,6 +3,7 @@ import type { Sale, SaleItem } from "./ReceiptPrinter";
 import type { StoreConfig } from "../App";
 import { recalculateSaleTotals } from "../utils/cashSales";
 import { resolveTaxConfig } from "../utils/tax";
+import { SelectField, type SelectOption } from "./SelectField";
 
 interface SaleEditModalProps {
   sale: Sale;
@@ -12,6 +13,11 @@ interface SaleEditModalProps {
 }
 
 const PAYMENT_METHODS = ["Efectivo", "Tarjeta", "Yape", "Fiado"];
+
+const PAYMENT_METHOD_OPTIONS: SelectOption[] = PAYMENT_METHODS.map((m) => ({
+  value: m,
+  label: m,
+}));
 
 function toDatetimeLocalValue(iso: string) {
   const d = new Date(iso);
@@ -84,16 +90,13 @@ export const SaleEditModal: React.FC<SaleEditModalProps> = ({ sale, storeConfig,
               />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>Método de pago</label>
-              <select
-                className="form-control"
+              <SelectField
+                label="Método de pago"
                 value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-              >
-                {PAYMENT_METHODS.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
+                options={PAYMENT_METHOD_OPTIONS}
+                onChange={setPaymentMethod}
+                accent="cyan"
+              />
             </div>
           </div>
 

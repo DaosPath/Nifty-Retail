@@ -525,6 +525,11 @@
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+  max-height: 280px;
+  overflow-y: auto;
+  --scrollbar-size: 6px;
+  --scrollbar-track: transparent;
+  --scrollbar-track-border: transparent;
 }
 
 .kardex-suggestions button {
@@ -827,10 +832,11 @@
 
 .kardex-table-wrap {
   overflow: auto;
-  overscroll-behavior: contain;
   border: 1px solid var(--border-glass);
   border-radius: 14px;
   max-height: min(52vh, 520px);
+  --scrollbar-size: 8px;
+  --scrollbar-thumb-outline: var(--color-bg-card, var(--color-bg-main));
 }
 
 .kardex-table {

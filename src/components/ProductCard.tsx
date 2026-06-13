@@ -15,6 +15,7 @@ export interface ProductCardProps {
   product: ProductCardProduct;
   soldOutLabel: string;
   stockLabel: string;
+  formatPrice: (value: number) => string;
   onAdd: (product: ProductCardProduct) => void;
 }
 
@@ -22,29 +23,38 @@ export const ProductCard = memo(function ProductCard({
   product: p,
   soldOutLabel,
   stockLabel,
+  formatPrice,
   onAdd,
 }: ProductCardProps) {
-  const isLowStock = p.stock <= p.minStock;
+  const isLowStock = p.stock > 0 && p.stock <= p.minStock;
   const isOutOfStock = p.stock === 0;
   const accent = getCategoryAccent(p.category);
 
-  const mediaStyle = {
+  const cardStyle = {
     "--cat-bg": accent.bg,
     "--cat-border": accent.border,
     "--cat-text": accent.text,
     "--cat-glow": accent.glow,
   } as CSSProperties;
 
+  const cardClass = [
+    "product-card",
+    isOutOfStock ? "disabled is-sold-out" : "",
+    isLowStock ? "is-low-stock" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <article
-      className={`product-card ${isOutOfStock ? "disabled is-sold-out" : ""}`}
+      className={cardClass}
       onClick={() => !isOutOfStock && onAdd(p)}
       aria-label={p.name}
-      style={{ opacity: isOutOfStock ? 0.72 : 1 }}
+      style={cardStyle}
     >
+      <div className="product-card-accent" aria-hidden="true" />
       <div
         className={`product-card-media ${p.image ? "has-image" : "is-placeholder"}`}
-        style={mediaStyle}
       >
         {p.image ? (
           <img src={p.image} alt="" className="product-card-img" loading="lazy" decoding="async" />
@@ -68,7 +78,9 @@ export const ProductCard = memo(function ProductCard({
           </div>
         )}
 
-        <span className="product-card-cat-pill">{p.category}</span>
+        <span className="product-card-cat-pill" title={p.category}>
+          {p.category}
+        </span>
 
         <span
           className={`product-card-stock-pill ${
@@ -78,6 +90,8 @@ export const ProductCard = memo(function ProductCard({
           {isOutOfStock ? soldOutLabel : stockLabel}
         </span>
 
+        {isOutOfStock && <span className="product-card-sold-overlay" aria-hidden="true" />}
+
         {!isOutOfStock && (
           <span className="product-card-add-hint" aria-hidden="true">
             +
@@ -86,9 +100,11 @@ export const ProductCard = memo(function ProductCard({
       </div>
 
       <div className="product-card-info">
-        <h4 className="product-card-name">{p.name}</h4>
-        <div className="product-card-price-row">
-          <span className="product-card-price">S/ {p.sellingPrice.toFixed(2)}</span>
+        <h4 className="product-card-name" title={p.name}>
+          {p.name}
+        </h4>
+        <div className="product-card-footer">
+          <span className="product-card-price">{formatPrice(p.sellingPrice)}</span>
           <span className="product-card-code" title={p.code}>
             {shortProductCode(p.code)}
           </span>

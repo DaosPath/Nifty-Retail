@@ -11,6 +11,7 @@ import {
   BoxIcon,
   ChartIcon,
 } from "./Icons";
+import { SelectField, type SelectOption } from "./SelectField";
 
 interface Product {
   code: string;
@@ -92,6 +93,24 @@ export const Alerts: React.FC<AlertsProps> = ({ products, lots, onQuickAdjustSto
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
   const [expirySort, setExpirySort] = useState<SortKey>("urgency");
   const [stockSort, setStockSort] = useState<SortKey>("urgency");
+
+  const expirySortOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: "urgency", label: t("alerts.sortUrgency") },
+      { value: "name", label: t("alerts.sortName") },
+      { value: "stock", label: t("alerts.sortStock") },
+    ],
+    [t]
+  );
+
+  const stockSortOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: "urgency", label: t("alerts.sortDeficit") },
+      { value: "name", label: t("alerts.sortName") },
+      { value: "stock", label: t("alerts.sortStock") },
+    ],
+    [t]
+  );
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   const deferredExpirySearch = useDeferredValue(expirySearch);
@@ -390,15 +409,16 @@ export const Alerts: React.FC<AlertsProps> = ({ products, lots, onQuickAdjustSto
               value={expirySearch}
               onChange={(e) => setExpirySearch(e.target.value)}
             />
-            <select
-              className="form-control alerts-sort"
+            <SelectField
+              label={t("alerts.sortLabel")}
               value={expirySort}
-              onChange={(e) => setExpirySort(e.target.value as SortKey)}
-            >
-              <option value="urgency">{t("alerts.sortUrgency")}</option>
-              <option value="name">{t("alerts.sortName")}</option>
-              <option value="stock">{t("alerts.sortStock")}</option>
-            </select>
+              options={expirySortOptions}
+              onChange={(v) => setExpirySort(v as SortKey)}
+              size="sm"
+              hideLabel
+              accent="cyan"
+              className="alerts-sort"
+            />
           </div>
 
           <div className="alerts-filter-tabs">
@@ -504,15 +524,16 @@ export const Alerts: React.FC<AlertsProps> = ({ products, lots, onQuickAdjustSto
               value={stockSearch}
               onChange={(e) => setStockSearch(e.target.value)}
             />
-            <select
-              className="form-control alerts-sort"
+            <SelectField
+              label={t("alerts.sortLabel")}
               value={stockSort}
-              onChange={(e) => setStockSort(e.target.value as SortKey)}
-            >
-              <option value="urgency">{t("alerts.sortDeficit")}</option>
-              <option value="name">{t("alerts.sortName")}</option>
-              <option value="stock">{t("alerts.sortStock")}</option>
-            </select>
+              options={stockSortOptions}
+              onChange={(v) => setStockSort(v as SortKey)}
+              size="sm"
+              hideLabel
+              accent="magenta"
+              className="alerts-sort"
+            />
           </div>
 
           <div className="alerts-filter-tabs">

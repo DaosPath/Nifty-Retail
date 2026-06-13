@@ -1970,6 +1970,7 @@ function App() {
             <CashControl
               sessions={cashSessions}
               sales={sales}
+              storeConfig={storeConfig}
               activeSession={activeSession}
               onOpenSession={handleOpenSession}
               onCloseSession={handleCloseSession}

@@ -3,6 +3,7 @@ import type { AppLocale } from "../i18n";
 export type CurrencyCode =
   | "PEN"
   | "USD"
+  | "CAD"
   | "EUR"
   | "MXN"
   | "COP"
@@ -30,6 +31,7 @@ export interface CurrencyMeta {
 export const CURRENCY_CATALOG: CurrencyMeta[] = [
   { code: "PEN", symbol: "S/", localeTag: "es-PE", decimals: 2 },
   { code: "USD", symbol: "$", localeTag: "en-US", decimals: 2 },
+  { code: "CAD", symbol: "$", localeTag: "en-CA", decimals: 2 },
   { code: "EUR", symbol: "€", localeTag: "es-ES", decimals: 2 },
   { code: "MXN", symbol: "$", localeTag: "es-MX", decimals: 2 },
   { code: "COP", symbol: "$", localeTag: "es-CO", decimals: 2 },

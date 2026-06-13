@@ -1,20 +1,16 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Line, Bar, Doughnut } from "react-chartjs-2";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler,
-} from "chart.js";
 import { useI18n } from "../i18n";
+import {
+  NIFTY_CHART_COLORS,
+  NiftyDonutChart,
+  NiftyHorizontalBarChart,
+  NiftyLineChart,
+  NiftyVerticalBarChart,
+  type ChartPoint,
+} from "./NiftyCharts";
 import { useMoney } from "../hooks/useMoney";
+import { generateReportsAiSummary } from "../features/reports/reportsAiSummary";
+import type { AgentToolContext } from "../features/ai-chat/agents/types";
 import type { CustomerDebt } from "./Debts";
 import type { SupplierDebt } from "../types/stock";
 import type { CashSession } from "../utils/cashSales";
@@ -30,19 +26,6 @@ import {
   KeyIcon,
   UserIcon,
 } from "./Icons";
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-);
 
 interface Product {
   code: string;
@@ -137,17 +120,6 @@ function prevPeriodSales(sales: Sale[], period: Period): Sale[] {
   );
 }
 
-const CHART_COLORS = [
-  "#c2117a",
-  "#00d4ff",
-  "#eab308",
-  "#16a34a",
-  "#8b5cf6",
-  "#f97316",
-  "#ef4444",
-  "#0891b2",
-];
-
 function ChartEmpty({
   message,
   hint,
@@ -185,11 +157,11 @@ export const Reports: React.FC<ReportsProps> = ({
   const [geminiKey, setGeminiKey] = useState("");
   const [aiSummary, setAiSummary] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiSqlQueries, setAiSqlQueries] = useState(0);
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [inputKey, setInputKey] = useState("");
   const [analysisTime, setAnalysisTime] = useState("");
 
-  const isLight = theme === "light";
   const periodLabels: Record<Period, string> = {
     hoy: t("reports.periodToday"),
     "7d": t("reports.period7d"),
@@ -302,6 +274,20 @@ export const Reports: React.FC<ReportsProps> = ({
     [period, t, locale, formatMoney]
   );
 
+  const aiToolContext = useMemo<AgentToolContext>(
+    () => ({
+      locale,
+      products,
+      lots,
+      debts,
+      sales,
+      activeSession,
+      cashSessions,
+      storeConfig: {},
+    }),
+    [locale, products, lots, debts, sales, activeSession, cashSessions]
+  );
+
   const generateAiAnalysis = useCallback(
     async (s: typeof stats) => {
       setAiLoading(true);
@@ -309,298 +295,64 @@ export const Reports: React.FC<ReportsProps> = ({
         new Date().toLocaleTimeString(localeTag, { hour: "2-digit", minute: "2-digit" })
       );
 
-      if (geminiKey) {
-        try {
-          const prompt = `Resumen ejecutivo en español (máx 280 caracteres) para tienda POS. Período: ${periodLabel}. Ventas: ${formatMoney(s.revenue)} (${s.revenueChange.toFixed(1)}%). Transacciones: ${s.transactions}. Margen: ${s.margin.toFixed(1)}%. Stock bajo: ${s.lowStockCount}. Por vencer: ${s.expiringCount}. CxC clientes: ${formatMoney(s.customerDebtTotal)}. CxP proveedores: ${formatMoney(s.supplierDebtTotal)}. Sin viñetas.`;
-
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
-          const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-          });
-
-          if (!response.ok) throw new Error("Failed");
-          const data = await response.json();
-          setAiSummary(data.candidates[0].content.parts[0].text.trim());
-        } catch {
-          setAiSummary(getLocalSummary(s));
-        } finally {
-          setAiLoading(false);
-        }
-      } else {
+      try {
+        const result = await generateReportsAiSummary({
+          geminiKey,
+          period,
+          periodLabel,
+          locale,
+          formatMoney,
+          toolContext: aiToolContext,
+          memoryFallback: () => getLocalSummary(s),
+        });
+        setAiSummary(result.text);
+        setAiSqlQueries(result.sqlQueries);
+      } catch {
         setAiSummary(getLocalSummary(s));
+        setAiSqlQueries(0);
+      } finally {
         setAiLoading(false);
       }
     },
-    [geminiKey, periodLabel, formatMoney, getLocalSummary, localeTag]
+    [
+      geminiKey,
+      period,
+      periodLabel,
+      locale,
+      formatMoney,
+      aiToolContext,
+      getLocalSummary,
+      localeTag,
+    ]
   );
 
   useEffect(() => {
     generateAiAnalysis(stats);
   }, [period, geminiKey, sales, products, debts, supplierDebts]);
 
-  const chartTheme = useMemo(
-    () => ({
-      grid: isLight ? "#f1f5f9" : "rgba(255, 255, 255, 0.03)",
-      tick: isLight ? "#6b7280" : "#a4b0be",
-      tooltipBg: isLight ? "#ffffff" : "rgba(18, 20, 28, 0.95)",
-      tooltipTitle: isLight ? "#111827" : "#f5f6fa",
-      tooltipBody: isLight ? "#4b5563" : "#a4b0be",
-      tooltipBorder: isLight ? "#e2e8f0" : "rgba(255, 255, 255, 0.05)",
-    }),
-    [isLight]
-  );
+  const buildTrendPoints = useCallback(
+    (filterFn?: (sale: Sale) => boolean): ChartPoint[] => {
+      const labels: string[] = [];
+      const values: number[] = [];
+      const now = new Date();
+      const pointsCount = period === "hoy" ? 8 : period === "7d" ? 7 : 10;
 
-  const baseChartOptions = useMemo(
-    () => ({
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: false,
-          labels: { color: chartTheme.tick, font: { family: "Inter", size: 11 } },
-        },
-        tooltip: {
-          backgroundColor: chartTheme.tooltipBg,
-          titleColor: chartTheme.tooltipTitle,
-          bodyColor: chartTheme.tooltipBody,
-          borderColor: chartTheme.tooltipBorder,
-          borderWidth: 1,
-          padding: 10,
-        },
-      },
-      scales: {
-        y: {
-          grid: { color: chartTheme.grid },
-          ticks: { color: chartTheme.tick, font: { size: 10 } },
-        },
-        x: {
-          grid: { display: false },
-          ticks: { color: chartTheme.tick, font: { size: 10 } },
-        },
-      },
-    }),
-    [chartTheme]
-  );
-
-  const lineChartData = useMemo(() => {
-    const dates: string[] = [];
-    const values: number[] = [];
-    const now = new Date();
-    const pointsCount = period === "hoy" ? 8 : period === "7d" ? 7 : 10;
-
-    for (let i = pointsCount - 1; i >= 0; i--) {
-      const d = new Date();
-      if (period === "hoy") {
-        d.setHours(now.getHours() - i);
-        dates.push(`${d.getHours()}:00`);
-      } else if (period === "7d") {
-        d.setDate(now.getDate() - i);
-        dates.push(d.toLocaleDateString(localeTag, { day: "numeric", month: "short" }));
-      } else {
-        d.setDate(now.getDate() - i * 3);
-        dates.push(d.toLocaleDateString(localeTag, { day: "numeric", month: "short" }));
+      for (let i = pointsCount - 1; i >= 0; i--) {
+        const d = new Date();
+        if (period === "hoy") {
+          d.setHours(now.getHours() - i);
+          labels.push(`${d.getHours()}:00`);
+        } else if (period === "7d") {
+          d.setDate(now.getDate() - i);
+          labels.push(d.toLocaleDateString(localeTag, { day: "numeric", month: "short" }));
+        } else {
+          d.setDate(now.getDate() - i * 3);
+          labels.push(d.toLocaleDateString(localeTag, { day: "numeric", month: "short" }));
+        }
+        values.push(0);
       }
-      values.push(0);
-    }
 
-    filteredSales.forEach((s) => {
-      const saleDate = new Date(s.timestamp);
-      if (period === "hoy") {
-        const hourDiff = Math.floor((now.getTime() - saleDate.getTime()) / 3600000);
-        if (hourDiff >= 0 && hourDiff < 8) values[7 - hourDiff] += s.total;
-      } else if (period === "7d") {
-        const dayDiff = Math.floor((now.getTime() - saleDate.getTime()) / (86400000));
-        if (dayDiff >= 0 && dayDiff < 7) values[6 - dayDiff] += s.total;
-      } else {
-        const dayDiff = Math.floor((now.getTime() - saleDate.getTime()) / 86400000);
-        if (dayDiff >= 0 && dayDiff < 30) values[9 - Math.floor(dayDiff / 3)] += s.total;
-      }
-    });
-
-    return {
-      labels: dates,
-      datasets: [
-        {
-          label: t("reports.trendTitle"),
-          data: values,
-          borderColor: "#c2117a",
-          backgroundColor: isLight ? "rgba(194, 17, 122, 0.08)" : "rgba(194, 17, 122, 0.12)",
-          fill: true,
-          tension: 0.4,
-          borderWidth: 2.5,
-          pointRadius: 4,
-        },
-      ],
-    };
-  }, [filteredSales, period, localeTag, isLight, t]);
-
-  const paymentMixData = useMemo(() => {
-    const methods = ["Efectivo", "Tarjeta", "Yape", "Fiado"] as const;
-    const totals = methods.map((m) =>
-      filteredSales.filter((s) => s.paymentMethod === m).reduce((sum, s) => sum + s.total, 0)
-    );
-    return {
-      labels: [...methods],
-      datasets: [
-        {
-          data: totals,
-          backgroundColor: CHART_COLORS.slice(0, 4),
-          borderWidth: 0,
-          hoverOffset: 6,
-        },
-      ],
-    };
-  }, [filteredSales]);
-
-  const topProductsData = useMemo(() => {
-    const map = new Map<string, number>();
-    filteredSales.forEach((s) =>
-      s.items.forEach((item) => {
-        map.set(item.name, (map.get(item.name) || 0) + item.price * item.quantity);
-      })
-    );
-    const sorted = [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
-    return {
-      labels: sorted.map(([n]) => (n.length > 22 ? `${n.slice(0, 22)}…` : n)),
-      datasets: [
-        {
-          data: sorted.map(([, v]) => v),
-          backgroundColor: CHART_COLORS[0],
-          borderRadius: 6,
-        },
-      ],
-    };
-  }, [filteredSales]);
-
-  const categorySalesData = useMemo(() => {
-    const map = new Map<string, number>();
-    filteredSales.forEach((s) =>
-      s.items.forEach((item) => {
-        const prod = products.find((p) => p.code === item.code);
-        const cat = prod?.category || "—";
-        map.set(cat, (map.get(cat) || 0) + item.price * item.quantity);
-      })
-    );
-    const sorted = [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
-    return {
-      labels: sorted.map(([c]) => c),
-      datasets: [
-        {
-          data: sorted.map(([, v]) => v),
-          backgroundColor: CHART_COLORS,
-          borderRadius: 6,
-        },
-      ],
-    };
-  }, [filteredSales, products]);
-
-  const customerDebtsData = useMemo(() => {
-    const sorted = [...debts]
-      .filter((d) => d.totalDebt > 0)
-      .sort((a, b) => b.totalDebt - a.totalDebt)
-      .slice(0, 8);
-    return {
-      labels: sorted.map((d) =>
-        d.customerName.length > 18 ? `${d.customerName.slice(0, 18)}…` : d.customerName
-      ),
-      datasets: [
-        {
-          data: sorted.map((d) => d.totalDebt),
-          backgroundColor: "#f97316",
-          borderRadius: 6,
-        },
-      ],
-    };
-  }, [debts]);
-
-  const supplierDebtsData = useMemo(() => {
-    const sorted = [...supplierDebts]
-      .filter((d) => d.totalDebt > 0)
-      .sort((a, b) => b.totalDebt - a.totalDebt)
-      .slice(0, 8);
-    return {
-      labels: sorted.map((d) =>
-        d.supplierName.length > 18 ? `${d.supplierName.slice(0, 18)}…` : d.supplierName
-      ),
-      datasets: [
-        {
-          data: sorted.map((d) => d.totalDebt),
-          backgroundColor: "#ef4444",
-          borderRadius: 6,
-        },
-      ],
-    };
-  }, [supplierDebts]);
-
-  const inventoryByCategoryData = useMemo(() => {
-    const map = new Map<string, number>();
-    products.forEach((p) => {
-      const val = p.stock * p.purchasePrice;
-      if (val <= 0) return;
-      map.set(p.category, (map.get(p.category) || 0) + val);
-    });
-    const sorted = [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
-    return {
-      labels: sorted.map(([c]) => c),
-      datasets: [
-        {
-          data: sorted.map(([, v]) => v),
-          backgroundColor: CHART_COLORS,
-          borderWidth: 0,
-        },
-      ],
-    };
-  }, [products]);
-
-  const cashVarianceData = useMemo(() => {
-    const closed = cashSessions
-      .filter((s) => s.endTime && s.difference != null)
-      .sort((a, b) => new Date(a.endTime!).getTime() - new Date(b.endTime!).getTime())
-      .slice(-8);
-
-    return {
-      labels: closed.map((s) =>
-        new Date(s.endTime!).toLocaleDateString(localeTag, { day: "numeric", month: "short" })
-      ),
-      datasets: [
-        {
-          label: t("reports.cashSessions"),
-          data: closed.map((s) => s.difference ?? 0),
-          backgroundColor: closed.map((s) =>
-            (s.difference ?? 0) >= 0 ? "rgba(34, 197, 94, 0.75)" : "rgba(239, 68, 68, 0.75)"
-          ),
-          borderRadius: 6,
-        },
-      ],
-    };
-  }, [cashSessions, localeTag, t]);
-
-  const creditTrendData = useMemo(() => {
-    const dates: string[] = [];
-    const values: number[] = [];
-    const now = new Date();
-    const points = period === "hoy" ? 8 : period === "7d" ? 7 : 10;
-
-    for (let i = points - 1; i >= 0; i--) {
-      const d = new Date();
-      if (period === "hoy") {
-        d.setHours(now.getHours() - i);
-        dates.push(`${d.getHours()}:00`);
-      } else if (period === "7d") {
-        d.setDate(now.getDate() - i);
-        dates.push(d.toLocaleDateString(localeTag, { day: "numeric", month: "short" }));
-      } else {
-        d.setDate(now.getDate() - i * 3);
-        dates.push(d.toLocaleDateString(localeTag, { day: "numeric", month: "short" }));
-      }
-      values.push(0);
-    }
-
-    filteredSales
-      .filter((s) => s.paymentMethod === "Fiado")
-      .forEach((s) => {
+      filteredSales.filter((s) => (filterFn ? filterFn(s) : true)).forEach((s) => {
         const saleDate = new Date(s.timestamp);
         if (period === "hoy") {
           const hourDiff = Math.floor((now.getTime() - saleDate.getTime()) / 3600000);
@@ -614,54 +366,121 @@ export const Reports: React.FC<ReportsProps> = ({
         }
       });
 
-    return {
-      labels: dates,
-      datasets: [
-        {
-          label: t("reports.creditSales"),
-          data: values,
-          borderColor: "#f97316",
-          backgroundColor: "rgba(249, 115, 22, 0.15)",
-          fill: true,
-          tension: 0.35,
-        },
-      ],
-    };
-  }, [filteredSales, period, localeTag, t]);
-
-  const doughnutOptions = useMemo(
-    () => ({
-      ...baseChartOptions,
-      scales: undefined,
-      plugins: {
-        ...baseChartOptions.plugins,
-        legend: {
-          display: true,
-          position: "bottom" as const,
-          labels: { color: chartTheme.tick, boxWidth: 12, padding: 14, font: { size: 11 } },
-        },
-      },
-    }),
-    [baseChartOptions, chartTheme]
+      return labels.map((label, i) => ({ label, value: values[i] }));
+    },
+    [filteredSales, period, localeTag]
   );
 
-  const horizontalBarOptions = useMemo(
-    () => ({
-      ...baseChartOptions,
-      indexAxis: "y" as const,
-      scales: {
-        x: {
-          grid: { color: chartTheme.grid },
-          ticks: { color: chartTheme.tick, font: { size: 10 } },
-        },
-        y: {
-          grid: { display: false },
-          ticks: { color: chartTheme.tick, font: { size: 10 } },
-        },
-      },
-    }),
-    [baseChartOptions, chartTheme]
+  const lineChartPoints = useMemo(() => buildTrendPoints(), [buildTrendPoints]);
+  const creditTrendPoints = useMemo(
+    () => buildTrendPoints((s) => s.paymentMethod === "Fiado"),
+    [buildTrendPoints]
   );
+
+  const paymentMixSegments = useMemo(() => {
+    const methods = ["Efectivo", "Tarjeta", "Yape", "Fiado"] as const;
+    return methods.map((method, i) => ({
+      label: method,
+      value: filteredSales
+        .filter((s) => s.paymentMethod === method)
+        .reduce((sum, s) => sum + s.total, 0),
+      color: NIFTY_CHART_COLORS[i],
+    }));
+  }, [filteredSales]);
+
+  const topProductsPoints = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredSales.forEach((s) =>
+      s.items.forEach((item) => {
+        map.set(item.name, (map.get(item.name) || 0) + item.price * item.quantity);
+      })
+    );
+    return [...map.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([name, value]) => ({
+        label: name.length > 22 ? `${name.slice(0, 22)}…` : name,
+        value,
+      }));
+  }, [filteredSales]);
+
+  const categorySalesPoints = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredSales.forEach((s) =>
+      s.items.forEach((item) => {
+        const prod = products.find((p) => p.code === item.code);
+        const cat = prod?.category || "—";
+        map.set(cat, (map.get(cat) || 0) + item.price * item.quantity);
+      })
+    );
+    return [...map.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([label, value], i) => ({
+        label,
+        value,
+        color: NIFTY_CHART_COLORS[i % NIFTY_CHART_COLORS.length],
+      }));
+  }, [filteredSales, products]);
+
+  const customerDebtsPoints = useMemo(
+    () =>
+      [...debts]
+        .filter((d) => d.totalDebt > 0)
+        .sort((a, b) => b.totalDebt - a.totalDebt)
+        .slice(0, 8)
+        .map((d) => ({
+          label: d.customerName.length > 18 ? `${d.customerName.slice(0, 18)}…` : d.customerName,
+          value: d.totalDebt,
+        })),
+    [debts]
+  );
+
+  const supplierDebtsPoints = useMemo(
+    () =>
+      [...supplierDebts]
+        .filter((d) => d.totalDebt > 0)
+        .sort((a, b) => b.totalDebt - a.totalDebt)
+        .slice(0, 8)
+        .map((d) => ({
+          label: d.supplierName.length > 18 ? `${d.supplierName.slice(0, 18)}…` : d.supplierName,
+          value: d.totalDebt,
+        })),
+    [supplierDebts]
+  );
+
+  const inventoryByCategorySegments = useMemo(() => {
+    const map = new Map<string, number>();
+    products.forEach((p) => {
+      const val = p.stock * p.purchasePrice;
+      if (val <= 0) return;
+      map.set(p.category, (map.get(p.category) || 0) + val);
+    });
+    return [...map.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([label, value], i) => ({
+        label,
+        value,
+        color: NIFTY_CHART_COLORS[i % NIFTY_CHART_COLORS.length],
+      }));
+  }, [products]);
+
+  const cashVariancePoints = useMemo(() => {
+    const closed = cashSessions
+      .filter((s) => s.endTime && s.difference != null)
+      .sort((a, b) => new Date(a.endTime!).getTime() - new Date(b.endTime!).getTime())
+      .slice(-8);
+
+    return closed.map((s) => {
+      const diff = s.difference ?? 0;
+      return {
+        label: new Date(s.endTime!).toLocaleDateString(localeTag, { day: "numeric", month: "short" }),
+        value: diff,
+        color: diff >= 0 ? "rgba(34, 197, 94, 0.85)" : "rgba(239, 68, 68, 0.85)",
+      };
+    });
+  }, [cashSessions, localeTag]);
 
   const saveApiKey = (e: React.FormEvent) => {
     e.preventDefault();
@@ -670,7 +489,7 @@ export const Reports: React.FC<ReportsProps> = ({
     setShowKeyInput(false);
   };
 
-  const hasPaymentData = paymentMixData.datasets[0].data.some((v) => v > 0);
+  const hasPaymentData = paymentMixSegments.some((s) => s.value > 0);
   const netDebtPosition = stats.customerDebtTotal - stats.supplierDebtTotal;
 
   return (
@@ -810,6 +629,7 @@ export const Reports: React.FC<ReportsProps> = ({
             )}
             <p className="reports-ai-meta">
               {t("reports.aiMeta")}
+              {aiSqlQueries > 0 ? ` · ${t("reports.aiSqlQueries", { count: aiSqlQueries })}` : ""}
               {analysisTime ? ` · ${analysisTime}` : ""}
             </p>
           </div>
@@ -952,7 +772,13 @@ export const Reports: React.FC<ReportsProps> = ({
             <span className="reports-section-chip">{periodLabel}</span>
           </header>
           <div className="reports-chart-canvas">
-            <Line data={lineChartData} options={baseChartOptions} />
+            <NiftyLineChart
+              points={lineChartPoints}
+              theme={theme}
+              formatValue={formatMoney}
+              color="#c2117a"
+              emptyHint={t("reports.noDataHint")}
+            />
           </div>
         </section>
 
@@ -1073,7 +899,12 @@ export const Reports: React.FC<ReportsProps> = ({
           </header>
           <div className="reports-chart-canvas reports-chart-canvas--doughnut">
             {hasPaymentData ? (
-              <Doughnut data={paymentMixData} options={doughnutOptions} />
+              <NiftyDonutChart
+                segments={paymentMixSegments}
+                theme={theme}
+                formatValue={formatMoney}
+                centerLabel={t("reports.totalSales")}
+              />
             ) : (
               <ChartEmpty
                 message={t("reports.noData")}
@@ -1095,8 +926,13 @@ export const Reports: React.FC<ReportsProps> = ({
             </div>
           </header>
           <div className="reports-chart-canvas reports-chart-canvas--doughnut">
-            {inventoryByCategoryData.datasets[0].data.length > 0 ? (
-              <Doughnut data={inventoryByCategoryData} options={doughnutOptions} />
+            {inventoryByCategorySegments.length > 0 ? (
+              <NiftyDonutChart
+                segments={inventoryByCategorySegments}
+                theme={theme}
+                formatValue={formatMoney}
+                centerLabel={t("reports.inventoryValue")}
+              />
             ) : (
               <ChartEmpty
                 message={t("reports.noData")}
@@ -1118,8 +954,12 @@ export const Reports: React.FC<ReportsProps> = ({
             </div>
           </header>
           <div className="reports-chart-canvas reports-chart-canvas--bar">
-            {categorySalesData.datasets[0].data.length > 0 ? (
-              <Bar data={categorySalesData} options={baseChartOptions} />
+            {categorySalesPoints.length > 0 ? (
+              <NiftyVerticalBarChart
+                points={categorySalesPoints}
+                theme={theme}
+                formatValue={formatMoney}
+              />
             ) : (
               <ChartEmpty
                 message={t("reports.noData")}
@@ -1141,8 +981,13 @@ export const Reports: React.FC<ReportsProps> = ({
             </div>
           </header>
           <div className="reports-chart-canvas reports-chart-canvas--bar">
-            {topProductsData.datasets[0].data.length > 0 ? (
-              <Bar data={topProductsData} options={horizontalBarOptions} />
+            {topProductsPoints.length > 0 ? (
+              <NiftyHorizontalBarChart
+                points={topProductsPoints}
+                theme={theme}
+                formatValue={formatMoney}
+                color="#c2117a"
+              />
             ) : (
               <ChartEmpty
                 message={t("reports.noData")}
@@ -1164,8 +1009,13 @@ export const Reports: React.FC<ReportsProps> = ({
             </div>
           </header>
           <div className="reports-chart-canvas reports-chart-canvas--bar">
-            {customerDebtsData.datasets[0].data.length > 0 ? (
-              <Bar data={customerDebtsData} options={horizontalBarOptions} />
+            {customerDebtsPoints.length > 0 ? (
+              <NiftyHorizontalBarChart
+                points={customerDebtsPoints}
+                theme={theme}
+                formatValue={formatMoney}
+                color="#f97316"
+              />
             ) : (
               <ChartEmpty
                 message={t("reports.noData")}
@@ -1187,8 +1037,13 @@ export const Reports: React.FC<ReportsProps> = ({
             </div>
           </header>
           <div className="reports-chart-canvas reports-chart-canvas--bar">
-            {supplierDebtsData.datasets[0].data.length > 0 ? (
-              <Bar data={supplierDebtsData} options={horizontalBarOptions} />
+            {supplierDebtsPoints.length > 0 ? (
+              <NiftyHorizontalBarChart
+                points={supplierDebtsPoints}
+                theme={theme}
+                formatValue={formatMoney}
+                color="#ef4444"
+              />
             ) : (
               <ChartEmpty
                 message={t("reports.noData")}
@@ -1211,7 +1066,15 @@ export const Reports: React.FC<ReportsProps> = ({
           </header>
           <div className="reports-chart-canvas">
             {stats.creditSalesTotal > 0 ? (
-              <Line data={creditTrendData} options={baseChartOptions} />
+              <NiftyLineChart
+                points={creditTrendPoints}
+                theme={theme}
+                formatValue={formatMoney}
+                color="#f97316"
+                fillFrom="rgba(249, 115, 22, 0.35)"
+                fillTo="rgba(249, 115, 22, 0.02)"
+                emptyHint={t("reports.noDataHint")}
+              />
             ) : (
               <ChartEmpty
                 message={t("reports.noData")}
@@ -1233,8 +1096,12 @@ export const Reports: React.FC<ReportsProps> = ({
             </div>
           </header>
           <div className="reports-chart-canvas reports-chart-canvas--bar">
-            {cashVarianceData.datasets[0].data.length > 0 ? (
-              <Bar data={cashVarianceData} options={baseChartOptions} />
+            {cashVariancePoints.length > 0 ? (
+              <NiftyVerticalBarChart
+                points={cashVariancePoints}
+                theme={theme}
+                formatValue={formatMoney}
+              />
             ) : (
               <ChartEmpty
                 message={t("reports.noData")}

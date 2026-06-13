@@ -8,12 +8,17 @@ import type { Warehouse } from "../types/catalog";
 import { getLocalizedWarehouseName } from "../utils/catalogHelpers";
 import type { SunatConfig } from "../types/sunat";
 import {
-  DEFAULT_TAX_PE,
-  DEFAULT_TAX_US,
+  allowsTaxJurisdiction,
+  isTaxInclusiveLocked,
   normalizeTaxConfig,
   type TaxConfig,
-  type TaxRegion,
 } from "../utils/tax";
+import {
+  getTaxConfigFromPreset,
+  getTaxPreset,
+  TAX_PRESET_GROUPS,
+  type TaxPresetId,
+} from "../utils/taxPresets";
 import {
   CURRENCY_CATALOG,
   formatCurrency,
@@ -21,6 +26,7 @@ import {
   type CurrencyCode,
 } from "../utils/currency";
 import { testSunatConnection } from "../utils/sunat/emitBoleta";
+import { SelectField, type SelectOption } from "./SelectField";
 import {
   SettingsIcon,
   PrinterIcon,
@@ -144,6 +150,37 @@ export const Settings: React.FC<SettingsProps> = ({
     [t]
   );
 
+  const salesWarehouseOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: "", label: t("common.defaultWarehouse") },
+      ...warehouses
+        .filter((w) => w.active)
+        .map((w) => ({
+          value: w.id,
+          label: getLocalizedWarehouseName(w, t),
+          hint: w.isDefault ? t("common.defaultWarehouseTag").trim() : undefined,
+        })),
+    ],
+    [warehouses, t]
+  );
+
+  const sunatEnvironmentOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: "beta", label: t("settings.envBeta") },
+      { value: "production", label: t("settings.envProduction") },
+    ],
+    [t]
+  );
+
+  const paperWidthOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: "58mm", label: t("settings.paper58") },
+      { value: "76mm", label: t("settings.paper76") },
+      { value: "80mm", label: t("settings.paper80") },
+    ],
+    [t]
+  );
+
   const handleSaveStoreInfo = async () => {
     setIsSaving(true);
     try {
@@ -224,13 +261,17 @@ export const Settings: React.FC<SettingsProps> = ({
     }));
   };
 
-  const handleTaxRegionChange = (region: TaxRegion) => {
-    const preset = region === "us" ? DEFAULT_TAX_US : DEFAULT_TAX_PE;
+  const handleTaxPresetApply = (presetId: TaxPresetId) => {
+    const preset = getTaxPreset(presetId);
+    if (!preset) return;
     setLocalConfig((prev) => ({
       ...prev,
-      tax: { ...preset },
+      tax: getTaxConfigFromPreset(presetId),
+      currency: preset.currency,
     }));
   };
+
+  const activeTaxPreset = getTaxPreset(taxConfig.region);
 
   const runDangerAction = async (
     action: () => Promise<boolean>,
@@ -548,26 +589,19 @@ export const Settings: React.FC<SettingsProps> = ({
               />
             </div>
             <div className="settings-field settings-field--full">
-              <label htmlFor="salesWarehouse">{t("settings.salesWarehouse")}</label>
-              <select
+              <SelectField
                 id="salesWarehouse"
-                className="form-control"
+                label={t("settings.salesWarehouse")}
                 value={localConfig.salesWarehouseId || ""}
-                onChange={(e) =>
+                options={salesWarehouseOptions}
+                onChange={(value) =>
                   setLocalConfig((prev) => ({
                     ...prev,
-                    salesWarehouseId: e.target.value || undefined,
+                    salesWarehouseId: value || undefined,
                   }))
                 }
-              >
-                <option value="">{t("common.defaultWarehouse")}</option>
-                {warehouses.filter((w) => w.active).map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {getLocalizedWarehouseName(w, t)}
-                    {w.isDefault ? t("common.defaultWarehouseTag") : ""}
-                  </option>
-                ))}
-              </select>
+                accent="cyan"
+              />
               <span className="settings-field-hint">{t("settings.salesWarehouseHint")}</span>
             </div>
             <div className="settings-field">
@@ -620,19 +654,49 @@ export const Settings: React.FC<SettingsProps> = ({
             </div>
           </header>
 
-          <div className="settings-form-grid">
-            <div className="settings-field settings-field--full">
-              <label htmlFor="taxRegion">{t("settings.taxRegion")}</label>
-              <select
-                id="taxRegion"
-                className="form-control"
-                value={taxConfig.region}
-                onChange={(e) => handleTaxRegionChange(e.target.value as TaxRegion)}
-              >
-                <option value="pe">{t("settings.taxRegionPe")}</option>
-                <option value="us">{t("settings.taxRegionUs")}</option>
-              </select>
-            </div>
+          <div className="settings-tax-presets-wrap">
+            <p className="settings-tax-presets-intro">{t("settings.taxPresetsIntro")}</p>
+            {TAX_PRESET_GROUPS.map((group) => (
+              <div key={group.id} className="settings-tax-preset-group">
+                <h3 className="settings-tax-preset-group-title">{t(group.labelKey)}</h3>
+                <div className="settings-tax-preset-grid">
+                  {group.presetIds.map((presetId) => {
+                    const preset = getTaxPreset(presetId);
+                    if (!preset) return null;
+                    const isActive = taxConfig.region === presetId;
+                    return (
+                      <button
+                        key={presetId}
+                        type="button"
+                        className={`settings-tax-preset-card${isActive ? " is-active" : ""}`}
+                        onClick={() => handleTaxPresetApply(presetId)}
+                        aria-pressed={isActive}
+                      >
+                        <span className="settings-tax-preset-flag" aria-hidden="true">
+                          {preset.flag}
+                        </span>
+                        <strong className="settings-tax-preset-name">{t(preset.nameKey)}</strong>
+                        <span className="settings-tax-preset-rate">
+                          {t(preset.taxLabelKey, { rate: preset.salesTaxRate })}
+                        </span>
+                        <span className="settings-tax-preset-authority">{t(preset.authorityKey)}</span>
+                        <span className="settings-tax-preset-currency">{preset.currency}</span>
+                        {isActive && (
+                          <span className="settings-theme-badge">{t("common.current")}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {activeTaxPreset?.noteKey && (
+            <p className="settings-tax-preset-note">{t(activeTaxPreset.noteKey)}</p>
+          )}
+
+          <div className="settings-form-grid settings-tax-custom-grid">
             <div className="settings-field">
               <label htmlFor="salesTaxRate">{t("settings.taxRate")}</label>
               <input
@@ -645,8 +709,9 @@ export const Settings: React.FC<SettingsProps> = ({
                 value={taxConfig.salesTaxRate}
                 onChange={(e) => handleTaxChange("salesTaxRate", parseFloat(e.target.value) || 0)}
               />
+              <span className="settings-field-hint">{t("settings.taxRateHint")}</span>
             </div>
-            {taxConfig.region === "us" && (
+            {allowsTaxJurisdiction(taxConfig) && (
               <div className="settings-field">
                 <label htmlFor="taxJurisdiction">{t("settings.taxJurisdiction")}</label>
                 <input
@@ -654,7 +719,7 @@ export const Settings: React.FC<SettingsProps> = ({
                   className="form-control"
                   value={taxConfig.jurisdiction || ""}
                   onChange={(e) => handleTaxChange("jurisdiction", e.target.value)}
-                  placeholder="CA, NY, TX…"
+                  placeholder={t("settings.taxJurisdictionPlaceholder")}
                 />
                 <span className="settings-field-hint">{t("settings.taxJurisdictionHint")}</span>
               </div>
@@ -664,13 +729,17 @@ export const Settings: React.FC<SettingsProps> = ({
                 <input
                   type="checkbox"
                   checked={taxConfig.taxInclusive}
-                  disabled={taxConfig.region === "pe"}
+                  disabled={isTaxInclusiveLocked(taxConfig)}
                   onChange={(e) => handleTaxChange("taxInclusive", e.target.checked)}
                 />
                 <span className="settings-toggle-track" aria-hidden="true" />
                 <span className="settings-toggle-label">{t("settings.taxInclusive")}</span>
               </label>
-              <span className="settings-field-hint">{t("settings.taxInclusiveHint")}</span>
+              <span className="settings-field-hint">
+                {isTaxInclusiveLocked(taxConfig)
+                  ? t("settings.taxInclusiveLocked")
+                  : t("settings.taxInclusiveHint")}
+              </span>
             </div>
           </div>
 
@@ -711,16 +780,14 @@ export const Settings: React.FC<SettingsProps> = ({
 
           <div className="settings-form-grid">
             <div className="settings-field">
-              <label htmlFor="sunatEnv">{t("settings.environment")}</label>
-              <select
+              <SelectField
                 id="sunatEnv"
-                className="form-control"
+                label={t("settings.environment")}
                 value={sunatConfig.environment}
-                onChange={(e) => handleSunatChange("environment", e.target.value as SunatConfig["environment"])}
-              >
-                <option value="beta">{t("settings.envBeta")}</option>
-                <option value="production">{t("settings.envProduction")}</option>
-              </select>
+                options={sunatEnvironmentOptions}
+                onChange={(value) => handleSunatChange("environment", value as SunatConfig["environment"])}
+                accent="amber"
+              />
             </div>
             <div className="settings-field">
               <label htmlFor="solUsuario">{t("settings.solUser")}</label>
@@ -821,25 +888,22 @@ export const Settings: React.FC<SettingsProps> = ({
 
           <div className="settings-form-grid">
             <div className="settings-field">
-              <label htmlFor="paperWidth">{t("settings.paperWidth")}</label>
-              <select
+              <SelectField
                 id="paperWidth"
-                className="form-control"
+                label={t("settings.paperWidth")}
                 value={localConfig.printer?.paperWidth || "76mm"}
-                onChange={(e) => {
+                options={paperWidthOptions}
+                onChange={(value) => {
                   setLocalConfig((prev) => ({
                     ...prev,
                     printer: {
                       ...(prev.printer || { autoPrintAfterSale: false, footerMessage: "" }),
-                      paperWidth: e.target.value as "58mm" | "76mm" | "80mm",
+                      paperWidth: value as "58mm" | "76mm" | "80mm",
                     },
                   }));
                 }}
-              >
-                <option value="58mm">{t("settings.paper58")}</option>
-                <option value="76mm">{t("settings.paper76")}</option>
-                <option value="80mm">{t("settings.paper80")}</option>
-              </select>
+                accent="magenta"
+              />
             </div>
             <div className="settings-field settings-field--toggle">
               <label className="settings-toggle settings-toggle--block">

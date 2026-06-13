@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import type { Sale } from "./ReceiptPrinter";
+import type { StoreConfig } from "../types/store";
 import { EditIcon, DeleteIcon, FolderIcon } from "./Icons";
 import { SaleEditModal } from "./SaleEditModal";
 import {
@@ -19,6 +20,7 @@ interface SessionEditModalProps {
   session: CashSession;
   sales: Sale[];
   sessions: CashSession[];
+  storeConfig?: StoreConfig;
   onSave: (session: CashSession) => void;
   onUpdateSale: (saleId: string, updated: Sale) => void;
   onDeleteSale: (saleId: string) => void;
@@ -29,6 +31,7 @@ export const SessionEditModal: React.FC<SessionEditModalProps> = ({
   session,
   sales,
   sessions,
+  storeConfig,
   onSave,
   onUpdateSale,
   onDeleteSale,
@@ -329,6 +332,7 @@ export const SessionEditModal: React.FC<SessionEditModalProps> = ({
         {editingSale && (
           <SaleEditModal
             sale={editingSale}
+            storeConfig={storeConfig}
             onClose={() => setEditingSale(null)}
             onSave={(updated) => {
               onUpdateSale(editingSale.id, updated);

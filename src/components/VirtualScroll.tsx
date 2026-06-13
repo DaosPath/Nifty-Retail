@@ -28,7 +28,7 @@ export function VirtualScroll<T>({
   const visibleItems = items.slice(virtual.start, virtual.end);
 
   return (
-    <div ref={scrollRef} className={className}>
+    <div ref={scrollRef} className={["nifty-scroll", className].filter(Boolean).join(" ")}>
       {virtual.padding.top > 0 && (
         <div className="virtual-scroll-spacer" style={{ height: virtual.padding.top }} aria-hidden="true" />
       )}

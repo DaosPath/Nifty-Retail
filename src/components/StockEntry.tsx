@@ -180,6 +180,9 @@ export const StockEntry: React.FC<StockEntryProps> = ({
   const hasItems = parsedLines.length > 0;
   const docComplete = hasSupplier && hasDocument && hasItems;
   const projectedCash = activeSession ? activeSession.expectedCash - paidToday : null;
+  const completionSteps = [hasSupplier, hasDocument, hasItems];
+  const completionCount = completionSteps.filter(Boolean).length;
+  const completionPct = Math.round((completionCount / 3) * 100);
 
   const getSuggestions = (lineId: string): Product[] => {
     if (activeSearchLineId !== lineId) return [];
@@ -302,6 +305,7 @@ export const StockEntry: React.FC<StockEntryProps> = ({
   return (
     <div className="stock-entry-layout">
       <div className="stock-entry-main card-glass">
+        <div className="stock-entry-main-accent" aria-hidden="true" />
         <header className="stock-entry-header">
           <div className="stock-entry-header-icon">
             <PackagePlusIcon size={22} />
@@ -311,7 +315,19 @@ export const StockEntry: React.FC<StockEntryProps> = ({
             <h3 className="stock-entry-title">Datos de la compra</h3>
             <p className="stock-entry-subtitle">Proveedor, comprobante, almacén destino y detalle de productos.</p>
           </div>
+          <div className="stock-entry-header-meta">
+            <span className="stock-entry-header-pill">{parsedLines.length} ítems</span>
+            <span className="stock-entry-header-pill stock-entry-header-pill--total">S/ {total.toFixed(2)}</span>
+          </div>
         </header>
+
+        <div className="stock-entry-steps-rail" aria-hidden="true">
+          <span className={`stock-entry-rail-step${hasSupplier ? " is-done" : ""}`}>1</span>
+          <span className={`stock-entry-rail-line${hasSupplier ? " is-done" : ""}`} />
+          <span className={`stock-entry-rail-step${hasDocument ? " is-done" : ""}`}>2</span>
+          <span className={`stock-entry-rail-line${hasDocument ? " is-done" : ""}`} />
+          <span className={`stock-entry-rail-step${hasItems ? " is-done" : ""}`}>3</span>
+        </div>
 
         <section className="stock-entry-panel">
           <div className="stock-entry-panel-head">
@@ -434,7 +450,7 @@ export const StockEntry: React.FC<StockEntryProps> = ({
           )}
         </section>
 
-        <section className="stock-entry-lines">
+        <section className="stock-entry-panel stock-entry-panel--lines">
           <div className="stock-entry-lines-head">
             <div className="stock-entry-panel-head stock-entry-panel-head--inline">
               <span className="stock-entry-step">3</span>
@@ -570,9 +586,10 @@ export const StockEntry: React.FC<StockEntryProps> = ({
       </div>
 
       <aside className="stock-entry-sidebar card-glass">
+        <div className="stock-entry-sidebar-accent" aria-hidden="true" />
         <header className="stock-entry-sidebar-head">
           <div className="stock-entry-sidebar-icon">
-            <PackagePlusIcon size={18} />
+            <CheckIcon size={18} />
           </div>
           <div>
             <p className="stock-entry-kicker">Antes de confirmar</p>
@@ -580,6 +597,17 @@ export const StockEntry: React.FC<StockEntryProps> = ({
             <p>Verifica que todo esté completo.</p>
           </div>
         </header>
+
+        <div className="stock-entry-progress">
+          <div className="stock-entry-progress-head">
+            <span>Progreso del ingreso</span>
+            <strong>{completionPct}%</strong>
+          </div>
+          <div className="stock-entry-progress-track" role="progressbar" aria-valuenow={completionPct} aria-valuemin={0} aria-valuemax={100}>
+            <div className="stock-entry-progress-fill" style={{ width: `${completionPct}%` }} />
+          </div>
+          <span className="stock-entry-progress-meta">{completionCount} de 3 pasos listos</span>
+        </div>
 
         <ul className="stock-entry-checklist">
           <li className={hasSupplier ? "done" : ""}>

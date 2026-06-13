@@ -10,6 +10,7 @@ import type { StockMovementType } from "../types/inventory";
 import { useI18n } from "../i18n";
 import { getLocalizedWarehouseName } from "../utils/catalogHelpers";
 import { buildKardexFromMovements, formatKardexDate, KARDEX_TYPE_OPTIONS, movementTypeLabel } from "../utils/kardex";
+import { SelectField, type SelectOption } from "./SelectField";
 
 interface KardexProps {
   products: Product[];
@@ -83,6 +84,29 @@ export const Kardex: React.FC<KardexProps> = ({ products, movements, warehouses,
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const productsByCode = useMemo(() => buildProductByCodeMap(products), [products]);
   const selectedProduct = selectedCode ? productsByCode.get(selectedCode) : undefined;
+
+  const typeFilterOptions = useMemo<SelectOption[]>(
+    () => KARDEX_TYPE_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label })),
+    []
+  );
+
+  const warehouseFilterOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: "", label: t("warehouses.all") },
+      ...warehouses
+        .filter((w) => w.active)
+        .map((w) => ({ value: w.id, label: getLocalizedWarehouseName(w, t) })),
+    ],
+    [warehouses, t]
+  );
+
+  const transferWarehouseOptions = useMemo<SelectOption[]>(
+    () =>
+      warehouses
+        .filter((w) => w.active)
+        .map((w) => ({ value: w.id, label: getLocalizedWarehouseName(w, t) })),
+    [warehouses, t]
+  );
 
   const suggestions = useMemo(() => {
     const q = deferredSearchQuery.toLowerCase().trim();
@@ -384,25 +408,26 @@ export const Kardex: React.FC<KardexProps> = ({ products, movements, warehouses,
 
             <div className="kardex-filter-field">
               <label>Tipo</label>
-              <select
-                className="form-control"
+              <SelectField
+                label="Tipo"
                 value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
-              >
-                {KARDEX_TYPE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+                options={typeFilterOptions}
+                onChange={(v) => setTypeFilter(v as TypeFilter)}
+                hideLabel
+                accent="amber"
+              />
             </div>
 
             <div className="kardex-filter-field">
               <label>{t("warehouses.label")}</label>
-              <select className="form-control" value={warehouseFilter} onChange={(e) => setWarehouseFilter(e.target.value)}>
-                <option value="">{t("warehouses.all")}</option>
-                {warehouses.filter((w) => w.active).map((w) => (
-                  <option key={w.id} value={w.id}>{getLocalizedWarehouseName(w, t)}</option>
-                ))}
-              </select>
+              <SelectField
+                label={t("warehouses.label")}
+                value={warehouseFilter}
+                options={warehouseFilterOptions}
+                onChange={setWarehouseFilter}
+                hideLabel
+                accent="cyan"
+              />
             </div>
           </div>
 
@@ -490,21 +515,29 @@ export const Kardex: React.FC<KardexProps> = ({ products, movements, warehouses,
               </div>
               <div className="kardex-filter-field">
                 <label>Desde</label>
-                <select className="form-control" value={transferFrom} onChange={(e) => setTransferFrom(e.target.value)}>
-                  <option value="">{t("common.selectPlaceholder")}</option>
-                  {warehouses.filter((w) => w.active).map((w) => (
-                    <option key={w.id} value={w.id}>{getLocalizedWarehouseName(w, t)}</option>
-                  ))}
-                </select>
+                <SelectField
+                  label="Desde"
+                  value={transferFrom}
+                  options={transferWarehouseOptions}
+                  onChange={setTransferFrom}
+                  placeholder={t("common.selectPlaceholder")}
+                  clearable
+                  hideLabel
+                  accent="magenta"
+                />
               </div>
               <div className="kardex-filter-field">
                 <label>Hacia</label>
-                <select className="form-control" value={transferTo} onChange={(e) => setTransferTo(e.target.value)}>
-                  <option value="">{t("common.selectPlaceholder")}</option>
-                  {warehouses.filter((w) => w.active).map((w) => (
-                    <option key={w.id} value={w.id}>{getLocalizedWarehouseName(w, t)}</option>
-                  ))}
-                </select>
+                <SelectField
+                  label="Hacia"
+                  value={transferTo}
+                  options={transferWarehouseOptions}
+                  onChange={setTransferTo}
+                  placeholder={t("common.selectPlaceholder")}
+                  clearable
+                  hideLabel
+                  accent="cyan"
+                />
               </div>
               <div className="kardex-filter-field">
                 <label>Nota</label>

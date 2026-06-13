@@ -6,9 +6,11 @@ import { ProductCard, type ProductCardProduct } from "./ProductCard";
 import type { StoreConfig } from "../App";
 import type { Category } from "../types/catalog";
 import { getActiveCategoryNames } from "../utils/catalogHelpers";
+import { getCategoryAccent } from "../utils/categoryAccent";
 import { getNextDocumentNumber } from "../utils/documents";
 import { calculateSaleTax, resolveTaxConfig, taxLabel } from "../utils/tax";
 import { useMoney } from "../hooks/useMoney";
+import { SelectField, type SelectOption } from "./SelectField";
 
 interface Product {
   code: string;
@@ -71,6 +73,9 @@ export const POS: React.FC<POSProps> = ({
   const [scanNotification, setScanNotification] = useState<string | null>(null);
   const [editingPriceCode, setEditingPriceCode] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState("");
+  const categoriesScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollCategoriesLeft, setCanScrollCategoriesLeft] = useState(false);
+  const [canScrollCategoriesRight, setCanScrollCategoriesRight] = useState(false);
 
   // Invoicing states
   const [documentType, setDocumentType] = useState<"ticket" | "boleta">("ticket");
@@ -93,9 +98,43 @@ export const POS: React.FC<POSProps> = ({
     return [allCategory, ...merged];
   }, [categories, products, allCategory]);
 
+  const creditCustomerOptions = useMemo<SelectOption[]>(
+    () =>
+      debts.map((d) => ({
+        value: d.id,
+        label: d.customerName,
+        hint: `Deuda S/ ${d.totalDebt.toFixed(2)}`,
+      })),
+    [debts]
+  );
+
   useEffect(() => {
     setSelectedCategory((prev) => (prev === "Todos" || prev === "All" ? allCategory : prev));
   }, [allCategory]);
+
+  const updateCategoriesScrollState = useCallback(() => {
+    const el = categoriesScrollRef.current;
+    if (!el) return;
+    setCanScrollCategoriesLeft(el.scrollLeft > 6);
+    setCanScrollCategoriesRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 6);
+  }, []);
+
+  useEffect(() => {
+    const el = categoriesScrollRef.current;
+    if (!el) return;
+    updateCategoriesScrollState();
+    el.addEventListener("scroll", updateCategoriesScrollState, { passive: true });
+    const observer = new ResizeObserver(updateCategoriesScrollState);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener("scroll", updateCategoriesScrollState);
+      observer.disconnect();
+    };
+  }, [categoryTabs, updateCategoriesScrollState]);
+
+  const scrollCategories = useCallback((delta: number) => {
+    categoriesScrollRef.current?.scrollBy({ left: delta, behavior: "smooth" });
+  }, []);
 
   const nextTicketNumber = useMemo(
     () => getNextDocumentNumber("ticket", storeConfig),
@@ -376,17 +415,58 @@ export const POS: React.FC<POSProps> = ({
           </div>
 
           <div className="pos-categories-rail">
-            <div className="pos-categories">
-              {categoryTabs.map((cat) => (
+            <div className="pos-categories-rail-head">
+              <span className="pos-categories-rail-label">{t("pos.categoriesLabel")}</span>
+              <div className="pos-categories-scroll-controls">
                 <button
-                  key={cat}
                   type="button"
-                  className={`category-tab ${selectedCategory === cat ? "active" : ""}`}
-                  onClick={() => setSelectedCategory(cat)}
+                  className="pos-categories-scroll-btn"
+                  onClick={() => scrollCategories(-220)}
+                  disabled={!canScrollCategoriesLeft}
+                  aria-label={t("pos.scrollCategoriesLeft")}
                 >
-                  {cat}
+                  ‹
                 </button>
-              ))}
+                <button
+                  type="button"
+                  className="pos-categories-scroll-btn"
+                  onClick={() => scrollCategories(220)}
+                  disabled={!canScrollCategoriesRight}
+                  aria-label={t("pos.scrollCategoriesRight")}
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+            <div className={`pos-categories-shell${canScrollCategoriesLeft ? " can-scroll-left" : ""}${canScrollCategoriesRight ? " can-scroll-right" : ""}`}>
+              <div className="pos-categories" ref={categoriesScrollRef}>
+                {categoryTabs.map((cat) => {
+                  const isAll = cat === allCategory;
+                  const isActive = selectedCategory === cat;
+                  const accent = isAll ? null : getCategoryAccent(cat);
+                  const tabStyle = isAll
+                    ? undefined
+                    : ({
+                        "--tab-accent": accent!.text,
+                        "--tab-bg": accent!.bg,
+                        "--tab-border": accent!.border,
+                      } as React.CSSProperties);
+
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      className={`category-tab${isActive ? " active" : ""}${isAll ? " is-all" : ""}`}
+                      style={tabStyle}
+                      onClick={() => setSelectedCategory(cat)}
+                      aria-pressed={isActive}
+                    >
+                      {!isAll && <span className="category-tab-dot" aria-hidden="true" />}
+                      <span className="category-tab-label">{cat}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -412,6 +492,7 @@ export const POS: React.FC<POSProps> = ({
                 product={p}
                 soldOutLabel={t("pos.soldOut")}
                 stockLabel={t("pos.stockLabel", { count: p.stock })}
+                formatPrice={formatMoney}
                 onAdd={handleAddProduct}
               />
             ))}
@@ -655,26 +736,25 @@ export const POS: React.FC<POSProps> = ({
               {paymentMethod === "Fiado" && (
                 <section className="pos-checkout-section">
                   <div className="form-group">
-                    <label>{t("pos.creditCustomer")}</label>
-                    <select
-                      className="form-control"
+                    <SelectField
+                      label={t("pos.creditCustomer")}
                       value={selectedCustomerId}
-                      onChange={(e) => {
-                        setSelectedCustomerId(e.target.value);
-                        const selected = debts.find((d) => d.id === e.target.value);
+                      options={creditCustomerOptions}
+                      onChange={(value) => {
+                        setSelectedCustomerId(value);
+                        const selected = debts.find((d) => d.id === value);
                         if (selected) {
                           setCustomerDni(selected.customerDni || "");
                           setCustomerName(selected.customerName || "");
+                        } else {
+                          setCustomerDni("");
+                          setCustomerName("");
                         }
                       }}
-                    >
-                      <option value="">{t("pos.selectCustomer")}</option>
-                      {debts.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.customerName} — Deuda S/ {d.totalDebt.toFixed(2)}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder={t("pos.selectCustomer")}
+                      clearable
+                      accent="magenta"
+                    />
                     <p className="pos-checkout-hint">{t("pos.creditHint")}</p>
                   </div>
                 </section>

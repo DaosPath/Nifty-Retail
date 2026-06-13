@@ -1,10 +1,19 @@
 import type { AppLocale } from "../i18n";
-import { formatCurrency } from "./currency";
+import { formatCurrency, type CurrencyCode } from "./currency";
+import {
+  currencyForTaxPreset,
+  defaultTaxPresetForLocale,
+  getTaxConfigFromPreset,
+  getTaxPreset,
+  isTaxPresetId,
+  type TaxPresetId,
+} from "./taxPresets";
 
-export type TaxRegion = "pe" | "us";
+/** @deprecated Usa TaxPresetId — se mantiene por compatibilidad */
+export type TaxRegion = TaxPresetId;
 
 export interface TaxConfig {
-  region: TaxRegion;
+  region: TaxPresetId;
   salesTaxRate: number;
   taxInclusive: boolean;
   jurisdiction?: string;
@@ -18,39 +27,35 @@ export interface SaleTaxBreakdown {
   taxAmount: number;
 }
 
-export const DEFAULT_TAX_PE: TaxConfig = {
-  region: "pe",
-  salesTaxRate: 18,
-  taxInclusive: true,
-};
-
-export const DEFAULT_TAX_US: TaxConfig = {
-  region: "us",
-  salesTaxRate: 8.25,
-  taxInclusive: false,
-  jurisdiction: "",
-};
+export const DEFAULT_TAX_PE: TaxConfig = getTaxConfigFromPreset("pe");
+export const DEFAULT_TAX_US: TaxConfig = getTaxConfigFromPreset("us");
 
 export function defaultTaxForLocale(locale: AppLocale): TaxConfig {
-  return locale === "en" ? { ...DEFAULT_TAX_US } : { ...DEFAULT_TAX_PE };
+  return getTaxConfigFromPreset(defaultTaxPresetForLocale(locale));
 }
 
 export function normalizeTaxConfig(
   tax: Partial<TaxConfig> | null | undefined,
   locale: AppLocale = "es"
 ): TaxConfig {
-  const base = defaultTaxForLocale(locale);
-  if (!tax || typeof tax !== "object") return base;
+  const fallbackId = defaultTaxPresetForLocale(locale);
+  const fallback = getTaxConfigFromPreset(fallbackId);
 
-  const region: TaxRegion = tax.region === "us" ? "us" : "pe";
-  const preset = region === "us" ? DEFAULT_TAX_US : DEFAULT_TAX_PE;
+  if (!tax || typeof tax !== "object") return fallback;
+
+  const region: TaxPresetId = isTaxPresetId(tax.region) ? tax.region : fallbackId;
+  const preset = getTaxPreset(region);
+  const presetConfig = getTaxConfigFromPreset(region);
   const rate = Number(tax.salesTaxRate);
 
   return {
     region,
-    salesTaxRate: Number.isFinite(rate) && rate >= 0 ? rate : preset.salesTaxRate,
-    taxInclusive: region === "pe" ? true : Boolean(tax.taxInclusive),
-    jurisdiction: typeof tax.jurisdiction === "string" ? tax.jurisdiction : preset.jurisdiction,
+    salesTaxRate: Number.isFinite(rate) && rate >= 0 ? rate : presetConfig.salesTaxRate,
+    taxInclusive: preset?.taxInclusiveLocked ? true : Boolean(tax.taxInclusive ?? presetConfig.taxInclusive),
+    jurisdiction:
+      typeof tax.jurisdiction === "string"
+        ? tax.jurisdiction
+        : preset?.defaultJurisdiction ?? presetConfig.jurisdiction,
   };
 }
 
@@ -82,17 +87,36 @@ export function calculateSaleTax(
   return { subtotal, discount, total, taxableBase: net, taxAmount };
 }
 
-export function formatMoney(amount: number, region: TaxRegion): string {
-  return formatCurrency(amount, region === "us" ? "USD" : "PEN");
+export function formatMoney(amount: number, region: TaxPresetId): string {
+  const currency: CurrencyCode = currencyForTaxPreset(region);
+  return formatCurrency(amount, currency);
 }
 
-export function taxLabel(taxConfig: TaxConfig, t: (key: string, vars?: Record<string, string | number>) => string): string {
-  if (taxConfig.region === "pe") {
-    return t("tax.igv", { rate: taxConfig.salesTaxRate });
-  }
-  const base = t("tax.salesTax", { rate: taxConfig.salesTaxRate });
-  if (taxConfig.jurisdiction?.trim()) {
+export function taxLabel(
+  taxConfig: TaxConfig,
+  t: (key: string, vars?: Record<string, string | number>) => string
+): string {
+  const preset = getTaxPreset(taxConfig.region);
+  const labelKey = preset?.taxLabelKey ?? "tax.labels.iva";
+  const base = t(labelKey, { rate: taxConfig.salesTaxRate });
+  if (taxConfig.jurisdiction?.trim() && preset?.allowsJurisdiction) {
     return `${base} (${taxConfig.jurisdiction.trim()})`;
   }
   return base;
+}
+
+export function isTaxInclusiveLocked(taxConfig: TaxConfig): boolean {
+  return Boolean(getTaxPreset(taxConfig.region)?.taxInclusiveLocked);
+}
+
+export function allowsTaxJurisdiction(taxConfig: TaxConfig): boolean {
+  return Boolean(getTaxPreset(taxConfig.region)?.allowsJurisdiction);
+}
+
+export function shouldShowReceiptTaxBreakdown(
+  taxConfig: TaxConfig,
+  documentType: "ticket" | "boleta"
+): boolean {
+  if (documentType === "boleta") return true;
+  return !taxConfig.taxInclusive;
 }

@@ -35,6 +35,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = (props) => {
   return (
     <div className="catalog-page">
       <header className="catalog-page-hero card-glass">
+        <div className="catalog-page-hero-accent" aria-hidden="true" />
         <div className="catalog-page-hero-glow" aria-hidden="true" />
         <div className="catalog-page-hero-main">
           <div className="catalog-page-hero-icon" aria-hidden="true">
@@ -46,42 +47,48 @@ export const CatalogPage: React.FC<CatalogPageProps> = (props) => {
             <p>{t("catalog.subtitle", { new: t("catalog.new") })}</p>
           </div>
         </div>
-        <div className="catalog-page-stats" role="list" aria-label={t("catalog.statsAria")}>
-          <div className="catalog-page-stat catalog-page-stat--cat" role="listitem">
-            <div className="catalog-page-stat-head">
-              <span className="catalog-page-stat-icon">
-                <LayersIcon size={13} />
-              </span>
-              <span className="catalog-page-stat-label">{t("catalog.statCategories")}</span>
-            </div>
-            <strong className="catalog-page-stat-value">{activeCategories}</strong>
+        <div className="catalog-page-stats-shell">
+          <div className="catalog-page-stats-head">
+            <span className="catalog-page-stats-dot" aria-hidden="true" />
+            {t("catalog.statsHead")}
           </div>
-          <div className="catalog-page-stat catalog-page-stat--sup" role="listitem">
-            <div className="catalog-page-stat-head">
-              <span className="catalog-page-stat-icon">
-                <UserIcon size={13} />
-              </span>
-              <span className="catalog-page-stat-label">{t("catalog.statSuppliers")}</span>
+          <div className="catalog-page-stats" role="list" aria-label={t("catalog.statsAria")}>
+            <div className="catalog-page-stat catalog-page-stat--cat" role="listitem">
+              <div className="catalog-page-stat-head">
+                <span className="catalog-page-stat-icon">
+                  <LayersIcon size={13} />
+                </span>
+                <span className="catalog-page-stat-label">{t("catalog.statCategories")}</span>
+              </div>
+              <strong className="catalog-page-stat-value">{activeCategories}</strong>
             </div>
-            <strong className="catalog-page-stat-value">{activeSuppliers}</strong>
-          </div>
-          <div className="catalog-page-stat catalog-page-stat--mfg" role="listitem">
-            <div className="catalog-page-stat-head">
-              <span className="catalog-page-stat-icon">
-                <BoxIcon size={13} />
-              </span>
-              <span className="catalog-page-stat-label">{t("catalog.statManufacturers")}</span>
+            <div className="catalog-page-stat catalog-page-stat--sup" role="listitem">
+              <div className="catalog-page-stat-head">
+                <span className="catalog-page-stat-icon">
+                  <UserIcon size={13} />
+                </span>
+                <span className="catalog-page-stat-label">{t("catalog.statSuppliers")}</span>
+              </div>
+              <strong className="catalog-page-stat-value">{activeSuppliers}</strong>
             </div>
-            <strong className="catalog-page-stat-value">{activeManufacturers}</strong>
-          </div>
-          <div className="catalog-page-stat catalog-page-stat--wh" role="listitem">
-            <div className="catalog-page-stat-head">
-              <span className="catalog-page-stat-icon">
-                <FolderIcon size={13} />
-              </span>
-              <span className="catalog-page-stat-label">{t("catalog.statWarehouses")}</span>
+            <div className="catalog-page-stat catalog-page-stat--mfg" role="listitem">
+              <div className="catalog-page-stat-head">
+                <span className="catalog-page-stat-icon">
+                  <BoxIcon size={13} />
+                </span>
+                <span className="catalog-page-stat-label">{t("catalog.statManufacturers")}</span>
+              </div>
+              <strong className="catalog-page-stat-value">{activeManufacturers}</strong>
             </div>
-            <strong className="catalog-page-stat-value">{activeWarehouses}</strong>
+            <div className="catalog-page-stat catalog-page-stat--wh" role="listitem">
+              <div className="catalog-page-stat-head">
+                <span className="catalog-page-stat-icon">
+                  <FolderIcon size={13} />
+                </span>
+                <span className="catalog-page-stat-label">{t("catalog.statWarehouses")}</span>
+              </div>
+              <strong className="catalog-page-stat-value">{activeWarehouses}</strong>
+            </div>
           </div>
         </div>
       </header>

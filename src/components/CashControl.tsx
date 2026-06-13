@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import type { Sale } from "./ReceiptPrinter";
+import type { StoreConfig } from "../types/store";
 import {
   FolderIcon,
   PlusIcon,
@@ -38,6 +39,7 @@ interface CashSession {
 interface CashControlProps {
   sessions: CashSession[];
   sales: Sale[];
+  storeConfig?: StoreConfig;
   activeSession: CashSession | null;
   onOpenSession: (initialBalance: number) => void;
   onCloseSession: (actualCash: number, notes: string) => void;
@@ -54,6 +56,7 @@ const PRESET_AMOUNTS = [100, 200, 500, 1000];
 export const CashControl: React.FC<CashControlProps> = ({
   sessions,
   sales,
+  storeConfig,
   activeSession,
   onOpenSession,
   onCloseSession,
@@ -616,6 +619,7 @@ export const CashControl: React.FC<CashControlProps> = ({
           session={editingSession}
           sales={sales}
           sessions={sessions}
+          storeConfig={storeConfig}
           onSave={onUpdateSession}
           onUpdateSale={onUpdateSale}
           onDeleteSale={onDeleteSale}

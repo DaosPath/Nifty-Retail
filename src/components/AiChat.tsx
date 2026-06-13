@@ -5,6 +5,7 @@ import { ChatMessageContent } from "./ChatMessageContent";
 import {
   AI_WIDGET_ACTION_EVENT,
   NIFTY_AGENTS,
+  getAgentDefinition,
   runGeminiAgent,
   ensureWidgetRenderersRegistered,
   generateLocalAiResponse,
@@ -201,45 +202,77 @@ export const AiChat: React.FC<AiChatProps> = ({
 
   const quickPrompts = useMemo(
     () => [
-      { label: t("aiChat.promptCash"), query: t("aiChat.queryCash"), tone: "cash" },
-      { label: t("aiChat.promptExpiry"), query: t("aiChat.queryExpiry"), tone: "date" },
-      { label: t("aiChat.promptDebt"), query: t("aiChat.queryDebt"), tone: "debt" },
-      { label: t("aiChat.promptStock"), query: t("aiChat.queryStock"), tone: "alert" },
-      { label: t("aiChat.promptTop"), query: t("aiChat.queryTop"), tone: "chart" },
-      { label: t("aiChat.promptSql"), query: t("aiChat.querySql"), tone: "sql" },
+      { label: t("aiChat.promptCash"), query: t("aiChat.queryCash"), tone: "cash", icon: "💵" },
+      { label: t("aiChat.promptExpiry"), query: t("aiChat.queryExpiry"), tone: "date", icon: "📅" },
+      { label: t("aiChat.promptDebt"), query: t("aiChat.queryDebt"), tone: "debt", icon: "🧾" },
+      { label: t("aiChat.promptStock"), query: t("aiChat.queryStock"), tone: "alert", icon: "⚠️" },
+      { label: t("aiChat.promptTop"), query: t("aiChat.queryTop"), tone: "chart", icon: "📈" },
+      { label: t("aiChat.promptSql"), query: t("aiChat.querySql"), tone: "sql", icon: "🗃️" },
     ],
     [t]
   );
 
   const showWelcome = messages.length === 1 && messages[0]?.sender === "ai";
+  const activeAgent = useMemo(() => getAgentDefinition(selectedAgent), [selectedAgent]);
+  const activeAgentLabel = locale === "en" ? activeAgent.labelEn : activeAgent.label;
+  const userMessageCount = useMemo(
+    () => messages.filter((message) => message.sender === "user").length,
+    [messages]
+  );
 
   return (
     <div className="ai-chat-page">
-      <header className="ai-chat-header">
-        <div className="ai-chat-header-main">
-          <div className="ai-chat-header-icon">
-            <LogoIcon size={22} />
+      <header className="ai-chat-hero card-glass">
+        <div className="ai-chat-hero-accent" aria-hidden="true" />
+        <div className="ai-chat-hero-glow" aria-hidden="true" />
+        <div className="ai-chat-hero-main">
+          <div className="ai-chat-hero-icon">
+            <LogoIcon size={24} />
           </div>
-          <div>
+          <div className="ai-chat-hero-body">
             <p className="ai-chat-kicker">{t("aiChat.kicker")}</p>
             <h3>{t("aiChat.title")}</h3>
             <p className="ai-chat-header-desc">{t("aiChat.subtitle")}</p>
           </div>
         </div>
-        <div className="ai-chat-header-actions">
-          <span className={`ai-chat-mode-pill ${geminiKey ? "is-agent" : "is-local"}`}>
-            {geminiKey ? t("aiChat.modeAgentGemini") : t("aiChat.modeLocal")}
-          </span>
-          <button type="button" className="btn btn-secondary btn-sm ai-chat-key-btn" onClick={() => setShowKeyModal(true)}>
-            <KeyIcon size={14} /> {t("aiChat.configureApiKey")}
-          </button>
+        <div className="ai-chat-hero-side">
+          <div className="ai-chat-hero-stats-shell">
+            <div className="ai-chat-hero-stats-head">
+              <span className="ai-chat-hero-stats-dot" aria-hidden="true" />
+              {t("aiChat.statsHead")}
+            </div>
+            <div className="ai-chat-hero-stats">
+              <div className="ai-chat-hero-stat ai-chat-hero-stat--agent">
+                <span className="ai-chat-hero-stat-label">{t("aiChat.statAgent")}</span>
+                <strong className="ai-chat-hero-stat-value">{activeAgentLabel}</strong>
+              </div>
+              <div className={`ai-chat-hero-stat ai-chat-hero-stat--mode ${geminiKey ? "is-agent" : "is-local"}`}>
+                <span className="ai-chat-hero-stat-label">{t("aiChat.statMode")}</span>
+                <strong className="ai-chat-hero-stat-value">
+                  {geminiKey ? t("aiChat.modeAgentGemini") : t("aiChat.modeLocal")}
+                </strong>
+              </div>
+              <div className="ai-chat-hero-stat ai-chat-hero-stat--msgs">
+                <span className="ai-chat-hero-stat-label">{t("aiChat.statMessages")}</span>
+                <strong className="ai-chat-hero-stat-value">{userMessageCount}</strong>
+              </div>
+            </div>
+          </div>
+          <div className="ai-chat-hero-actions">
+            <span className={`ai-chat-mode-pill ${geminiKey ? "is-agent" : "is-local"}`}>
+              {geminiKey ? t("aiChat.modeAgentGemini") : t("aiChat.modeLocal")}
+            </span>
+            <button type="button" className="btn btn-secondary btn-sm ai-chat-key-btn" onClick={() => setShowKeyModal(true)}>
+              <KeyIcon size={14} /> {t("aiChat.configureApiKey")}
+            </button>
+          </div>
         </div>
       </header>
 
-      <section className="ai-agent-strip-shell" aria-label={t("aiChat.agentPickerAria")}>
+      <section className="ai-agent-strip-shell card-glass" aria-label={t("aiChat.agentPickerAria")}>
         <div className="ai-agent-strip-head">
           <span className="ai-agent-strip-title">{t("aiChat.agentPickerTitle")}</span>
-          <span className="ai-agent-strip-badge">SQLite + Gemini</span>
+          <span className="ai-agent-strip-badge">{t("aiChat.engineBadge")}</span>
         </div>
         <div className="ai-agent-strip">
           {NIFTY_AGENTS.map((agent) => {
@@ -274,7 +307,8 @@ export const AiChat: React.FC<AiChatProps> = ({
       <div className="ai-chat-messages">
         <div className="ai-chat-messages-inner">
           {showWelcome && (
-            <div className="ai-chat-welcome">
+            <div className="ai-chat-welcome card-glass">
+              <div className="ai-chat-welcome-glow" aria-hidden="true" />
               <div className="ai-chat-welcome-icon">
                 <LogoIcon size={28} />
               </div>
@@ -289,7 +323,10 @@ export const AiChat: React.FC<AiChatProps> = ({
                     onClick={() => handleSend(prompt.query)}
                     disabled={aiLoading}
                   >
-                    {prompt.label}
+                    <span className="ai-chat-prompt-icon" aria-hidden="true">
+                      {prompt.icon}
+                    </span>
+                    <span className="ai-chat-prompt-copy">{prompt.label}</span>
                   </button>
                 ))}
               </div>
@@ -334,19 +371,24 @@ export const AiChat: React.FC<AiChatProps> = ({
       </div>
 
       <footer className="ai-chat-composer">
-        <div className="ai-chat-chips">
-          {quickPrompts.map((prompt) => (
-            <button
-              key={`chip-${prompt.label}`}
-              type="button"
-              className={`ai-chat-chip ai-chat-chip--${prompt.tone}`}
-              onClick={() => handleSend(prompt.query)}
-              disabled={aiLoading}
-            >
-              {prompt.label}
-            </button>
-          ))}
-        </div>
+        {!showWelcome && (
+          <div className="ai-chat-chips">
+            {quickPrompts.map((prompt) => (
+              <button
+                key={`chip-${prompt.label}`}
+                type="button"
+                className={`ai-chat-chip ai-chat-chip--${prompt.tone}`}
+                onClick={() => handleSend(prompt.query)}
+                disabled={aiLoading}
+              >
+                <span className="ai-chat-chip-icon" aria-hidden="true">
+                  {prompt.icon}
+                </span>
+                {prompt.label}
+              </button>
+            ))}
+          </div>
+        )}
         <form
           className="ai-chat-input-row"
           onSubmit={(e) => {
@@ -369,32 +411,30 @@ export const AiChat: React.FC<AiChatProps> = ({
       </footer>
 
       {showKeyModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3>{t("aiChat.modalTitle")}</h3>
-              <button className="modal-close" onClick={() => setShowKeyModal(false)}>
+        <div className="modal-overlay ai-chat-modal-overlay" onMouseDown={() => setShowKeyModal(false)}>
+          <div className="ai-chat-modal" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <header className="ai-chat-modal-header">
+              <div>
+                <p className="ai-chat-modal-kicker">{t("aiChat.agentPickerTitle")}</p>
+                <h3>{t("aiChat.modalTitle")}</h3>
+              </div>
+              <button type="button" className="ai-chat-modal-close" onClick={() => setShowKeyModal(false)} aria-label={t("common.cancel")}>
                 ×
               </button>
-            </div>
-            <form onSubmit={saveApiKey}>
-              <p style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "15px", lineHeight: "1.4" }}>
+            </header>
+            <form className="ai-chat-modal-body" onSubmit={saveApiKey}>
+              <p className="ai-chat-modal-desc">
                 {t("aiChat.modalDesc")}{" "}
-                <a
-                  href="https://aistudio.google.com/"
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ color: "var(--accent)", textDecoration: "underline" }}
-                >
+                <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer">
                   Google AI Studio
                 </a>
                 . {t("aiChat.modalProviderNote")}
               </p>
-              <div className="form-group">
+              <div className="ai-chat-modal-field">
                 <label>{t("aiChat.apiKeyLabel")}</label>
                 <input
                   type="password"
-                  className="form-control"
+                  className="ai-chat-modal-input"
                   placeholder={t("aiChat.apiKeyPlaceholder")}
                   value={inputKey}
                   onChange={(e) => setInputKey(e.target.value)}
@@ -402,14 +442,14 @@ export const AiChat: React.FC<AiChatProps> = ({
                   autoFocus
                 />
               </div>
-              <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
-                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowKeyModal(false)}>
+              <footer className="ai-chat-modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowKeyModal(false)}>
                   {t("common.cancel")}
                 </button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+                <button type="submit" className="btn btn-primary">
                   {t("aiChat.saveKey")}
                 </button>
-              </div>
+              </footer>
             </form>
           </div>
         </div>

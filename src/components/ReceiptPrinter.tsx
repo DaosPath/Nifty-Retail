@@ -5,7 +5,7 @@ import {
   buildSunatQrPayload,
   formatReceiptDate,
 } from "../utils/documents";
-import { resolveTaxConfig, taxLabel } from "../utils/tax";
+import { resolveTaxConfig, shouldShowReceiptTaxBreakdown, taxLabel } from "../utils/tax";
 import { formatCurrency, normalizeCurrency } from "../utils/currency";
 import type { StoreConfig } from "../types/store";
 
@@ -168,7 +168,8 @@ export const ReceiptPrinter: React.FC<ReceiptPrinterProps> = ({ sale, storeConfi
       <div className="receipt-divider" />
 
       <div className="receipt-totals">
-        {(isBoleta || taxConfig.region === "us") && (sale.gravada || sale.igv) ? (
+        {shouldShowReceiptTaxBreakdown(taxConfig, isBoleta ? "boleta" : "ticket") &&
+        (sale.gravada || sale.igv) ? (
           <>
             <div className="receipt-row">
               <span>{t("tax.taxableAmount")}:</span>

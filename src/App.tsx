@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useMemo } from "react";
+import { lazy, Suspense, useState, useEffect, useMemo, type ComponentType } from "react";
 import {
   DEFAULT_LOCALE,
   getTranslator,
@@ -113,8 +113,77 @@ import {
   HistoryIcon,
   PackagePlusIcon,
   LayersIcon,
+  UserIcon,
+  ScannerIcon,
 } from "./components/Icons";
 import "./App.css";
+
+type AppTab =
+  | "pos"
+  | "inventory"
+  | "catalog"
+  | "stock-entry"
+  | "kardex"
+  | "alerts"
+  | "cash"
+  | "sales-history"
+  | "reports"
+  | "debts"
+  | "ai-chat"
+  | "settings";
+
+type SidebarIcon = ComponentType<{ size?: number; className?: string }>;
+
+const SIDEBAR_SECTIONS: { sectionKey: string; items: { tab: AppTab; icon: SidebarIcon; labelKey: string }[] }[] = [
+  {
+    sectionKey: "sidebar.sections.sales",
+    items: [{ tab: "pos", icon: CartIcon, labelKey: "nav.pos" }],
+  },
+  {
+    sectionKey: "sidebar.sections.inventory",
+    items: [
+      { tab: "inventory", icon: BoxIcon, labelKey: "nav.inventory" },
+      { tab: "catalog", icon: LayersIcon, labelKey: "nav.catalog" },
+      { tab: "stock-entry", icon: PackagePlusIcon, labelKey: "nav.stockEntry" },
+      { tab: "kardex", icon: LayersIcon, labelKey: "nav.kardex" },
+      { tab: "alerts", icon: AlertIcon, labelKey: "nav.alerts" },
+    ],
+  },
+  {
+    sectionKey: "sidebar.sections.finance",
+    items: [
+      { tab: "cash", icon: KeyIcon, labelKey: "nav.cash" },
+      { tab: "sales-history", icon: HistoryIcon, labelKey: "nav.salesHistory" },
+      { tab: "debts", icon: CashIcon, labelKey: "nav.debts" },
+    ],
+  },
+  {
+    sectionKey: "sidebar.sections.intelligence",
+    items: [
+      { tab: "ai-chat", icon: MessageIcon, labelKey: "nav.aiChat" },
+      { tab: "reports", icon: ChartIcon, labelKey: "nav.reports" },
+    ],
+  },
+  {
+    sectionKey: "sidebar.sections.system",
+    items: [{ tab: "settings", icon: SettingsIcon, labelKey: "nav.settings" }],
+  },
+];
+
+const TAB_HEADER_ICONS: Record<AppTab, SidebarIcon> = {
+  pos: CartIcon,
+  inventory: BoxIcon,
+  catalog: LayersIcon,
+  "stock-entry": PackagePlusIcon,
+  kardex: LayersIcon,
+  alerts: AlertIcon,
+  cash: KeyIcon,
+  "sales-history": HistoryIcon,
+  debts: CashIcon,
+  "ai-chat": MessageIcon,
+  reports: ChartIcon,
+  settings: SettingsIcon,
+};
 
 export interface Product {
   code: string;
@@ -165,9 +234,7 @@ function App() {
     createDefaultStoreConfig(DEFAULT_LOCALE, "dark")
   );
   
-  const [activeTab, setActiveTab] = useState<
-    "pos" | "inventory" | "catalog" | "stock-entry" | "kardex" | "alerts" | "cash" | "sales-history" | "reports" | "debts" | "ai-chat" | "settings"
-  >("pos");
+  const [activeTab, setActiveTab] = useState<AppTab>("pos");
   const [suppliers, setSuppliers] = useState<Supplier[]>(DEFAULT_SUPPLIERS.map(extendLegacySupplier));
   const [categories, setCategories] = useState<Category[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -1686,6 +1753,8 @@ function App() {
 
   const alertsCount = useMemo(() => countInventoryAlerts(products, lots), [products, lots]);
 
+  const HeaderTabIcon = TAB_HEADER_ICONS[activeTab];
+
   const activeHeader = {
     pos: t("headers.pos"),
     inventory: t("headers.inventory"),
@@ -1715,84 +1784,35 @@ function App() {
             <h1>Nifty Retail</h1>
           </div>
           
-          <nav className="sidebar-menu">
-            <li
-              className={`menu-item ${activeTab === "pos" ? "active" : ""}`}
-              onClick={() => setActiveTab("pos")}
-            >
-              <CartIcon size={20} className="menu-item-icon" /> {t("nav.pos")}
-            </li>
-            <li
-              className={`menu-item ${activeTab === "inventory" ? "active" : ""}`}
-              onClick={() => setActiveTab("inventory")}
-            >
-              <BoxIcon size={20} className="menu-item-icon" /> {t("nav.inventory")}
-            </li>
-            <li
-              className={`menu-item ${activeTab === "catalog" ? "active" : ""}`}
-              onClick={() => setActiveTab("catalog")}
-            >
-              <LayersIcon size={20} className="menu-item-icon" /> {t("nav.catalog")}
-            </li>
-            <li
-              className={`menu-item ${activeTab === "stock-entry" ? "active" : ""}`}
-              onClick={() => setActiveTab("stock-entry")}
-            >
-              <PackagePlusIcon size={20} className="menu-item-icon" /> {t("nav.stockEntry")}
-            </li>
-            <li
-              className={`menu-item ${activeTab === "kardex" ? "active" : ""}`}
-              onClick={() => setActiveTab("kardex")}
-            >
-              <LayersIcon size={20} className="menu-item-icon" /> {t("nav.kardex")}
-            </li>
-            <li
-              className={`menu-item ${activeTab === "alerts" ? "active" : ""}`}
-              onClick={() => setActiveTab("alerts")}
-            >
-              <AlertIcon size={20} className="menu-item-icon" /> {t("nav.alerts")}
-              {alertsCount > 0 && (
-                <span className="badge badge-danger" style={{ marginLeft: "auto" }}>
-                  {alertsCount}
-                </span>
-              )}
-            </li>
-            <li
-              className={`menu-item ${activeTab === "cash" ? "active" : ""}`}
-              onClick={() => setActiveTab("cash")}
-            >
-              <KeyIcon size={20} className="menu-item-icon" /> {t("nav.cash")}
-            </li>
-            <li
-              className={`menu-item ${activeTab === "sales-history" ? "active" : ""}`}
-              onClick={() => setActiveTab("sales-history")}
-            >
-              <HistoryIcon size={20} className="menu-item-icon" /> {t("nav.salesHistory")}
-            </li>
-            <li
-              className={`menu-item ${activeTab === "debts" ? "active" : ""}`}
-              onClick={() => setActiveTab("debts")}
-            >
-              <CashIcon size={20} className="menu-item-icon" /> {t("nav.debts")}
-            </li>
-            <li
-              className={`menu-item ${activeTab === "ai-chat" ? "active" : ""}`}
-              onClick={() => setActiveTab("ai-chat")}
-            >
-              <MessageIcon size={20} className="menu-item-icon" /> {t("nav.aiChat")}
-            </li>
-            <li
-              className={`menu-item ${activeTab === "reports" ? "active" : ""}`}
-              onClick={() => setActiveTab("reports")}
-            >
-              <ChartIcon size={20} className="menu-item-icon" /> {t("nav.reports")}
-            </li>
-            <li
-              className={`menu-item ${activeTab === "settings" ? "active" : ""}`}
-              onClick={() => setActiveTab("settings")}
-            >
-              <SettingsIcon size={20} className="menu-item-icon" /> {t("nav.settings")}
-            </li>
+          <nav className="sidebar-menu" aria-label={t("sidebar.navLabel")}>
+            {SIDEBAR_SECTIONS.map((section) => (
+              <div key={section.sectionKey} className="sidebar-menu-section">
+                <span className="sidebar-menu-section-label">{t(section.sectionKey)}</span>
+                <ul className="sidebar-menu-section-list">
+                  {section.items.map(({ tab, icon: Icon, labelKey }) => {
+                    const isActive = activeTab === tab;
+                    return (
+                      <li key={tab}>
+                        <button
+                          type="button"
+                          className={`menu-item${isActive ? " active" : ""}`}
+                          onClick={() => setActiveTab(tab)}
+                          aria-current={isActive ? "page" : undefined}
+                        >
+                          <span className="menu-item-icon-wrap" aria-hidden="true">
+                            <Icon size={18} className="menu-item-icon" />
+                          </span>
+                          <span className="menu-item-label">{t(labelKey)}</span>
+                          {tab === "alerts" && alertsCount > 0 && (
+                            <span className="menu-item-badge">{alertsCount}</span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
           </nav>
         </div>
 
@@ -1816,23 +1836,35 @@ function App() {
       {/* Main Content Area */}
       <main className="app-content">
         <header className="app-header">
+          <div className="app-header-accent" aria-hidden="true" />
           <div className="header-title">
-            <LogoIcon size={28} className="app-header-logo" />
-            <h2>{activeHeader}</h2>
+            <span className="header-title-mark" aria-hidden="true">
+              <HeaderTabIcon size={20} className="header-title-mark-icon" />
+            </span>
+            <div className="header-title-copy">
+              <span className="header-title-eyebrow">{t("header.appName")}</span>
+              <h2>{activeHeader}</h2>
+            </div>
           </div>
           <div className="header-status">
-            <div className="scanner-badge">
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                <span className="pulse-indicator"></span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
-                  <line x1="7" y1="12" x2="17" y2="12" />
-                </svg>
-                {t("sidebar.scannerActive")}
-              </span>
-            </div>
-            <div style={{ fontSize: "14px", color: "var(--text-muted)", fontWeight: "500" }}>
-              {t("sidebar.cashier", { name: t("common.admin") })}
+            <div className="header-status-panel">
+              <div className="header-status-chip header-status-chip--scanner">
+                <span className="pulse-indicator" aria-hidden="true" />
+                <ScannerIcon size={14} />
+                <span>{t("sidebar.scannerActive")}</span>
+              </div>
+              <div className="header-status-divider" aria-hidden="true" />
+              <div className="header-status-chip header-status-chip--user">
+                <UserIcon size={14} />
+                <span>{t("sidebar.cashier", { name: t("common.admin") })}</span>
+              </div>
+              <div className="header-status-divider" aria-hidden="true" />
+              <div
+                className={`header-status-chip header-status-chip--cash${activeSession ? " is-open" : " is-closed"}`}
+              >
+                <span className="header-status-chip-dot" aria-hidden="true" />
+                <span>{activeSession ? t("sidebar.cashOpen") : t("sidebar.cashClosed")}</span>
+              </div>
             </div>
           </div>
         </header>
@@ -1991,6 +2023,10 @@ function App() {
                 activeSession={activeSession}
                 cashSessions={cashSessions}
                 storeConfig={storeConfig}
+                suppliers={suppliers}
+                categories={categories}
+                warehouses={warehouses}
+                stockMovements={stockMovements}
               />
             </Suspense>
           )}

@@ -190,8 +190,12 @@ export const Reports: React.FC<ReportsProps> = ({
   const [analysisTime, setAnalysisTime] = useState("");
 
   const isLight = theme === "light";
-  const periodLabel =
-    period === "hoy" ? t("reports.periodToday") : period === "7d" ? t("reports.period7d") : t("reports.period30d");
+  const periodLabels: Record<Period, string> = {
+    hoy: t("reports.periodToday"),
+    "7d": t("reports.period7d"),
+    "30d": t("reports.period30d"),
+  };
+  const periodLabel = periodLabels[period];
 
   useEffect(() => {
     const key = localStorage.getItem("nifty_gemini_api_key") || "";
@@ -672,11 +676,13 @@ export const Reports: React.FC<ReportsProps> = ({
   return (
     <div className="reports-page">
       <section className="reports-hero card-glass">
-        <div className="reports-hero-glow" aria-hidden="true" />
-        <div className="reports-hero-main">
+        <div className="reports-hero-glow reports-hero-glow--magenta" aria-hidden="true" />
+        <div className="reports-hero-glow reports-hero-glow--cyan" aria-hidden="true" />
+
+        <div className="reports-hero-top">
           <div className="reports-hero-title-block">
             <div className="reports-hero-icon" aria-hidden="true">
-              <ChartIcon size={26} />
+              <ChartIcon size={24} />
             </div>
             <div>
               <p className="reports-hero-eyebrow">{t("reports.heroEyebrow")}</p>
@@ -684,11 +690,17 @@ export const Reports: React.FC<ReportsProps> = ({
               <p className="reports-hero-desc">{t("reports.heroDesc")}</p>
             </div>
           </div>
-          <div className="reports-hero-controls">
+
+          <div className="reports-hero-toolbar">
             <span className={`reports-cash-badge${activeSession ? " is-open" : " is-closed"}`}>
+              <span className="reports-cash-badge-dot" aria-hidden="true" />
               {activeSession ? t("reports.cashOpen") : t("reports.cashClosed")}
             </span>
-            <div className="reports-period-toggle" role="tablist" aria-label={t("reports.liveView", { period: periodLabel })}>
+            <div
+              className="reports-period-toggle"
+              role="tablist"
+              aria-label={t("reports.liveView", { period: periodLabel })}
+            >
               {(["hoy", "7d", "30d"] as const).map((p) => (
                 <button
                   key={p}
@@ -698,14 +710,21 @@ export const Reports: React.FC<ReportsProps> = ({
                   className={`reports-period-btn${period === p ? " is-active" : ""}`}
                   onClick={() => setPeriod(p)}
                 >
-                  {p === "hoy" ? t("reports.periodToday") : p}
+                  {periodLabels[p]}
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="reports-hero-stats" role="list" aria-label={t("reports.liveTitle")}>
+        <div className="reports-hero-stats-shell">
+          <div className="reports-hero-stats-head">
+            <span className="reports-hero-live-dot" aria-hidden="true" />
+            <span className="reports-hero-stats-label">{t("reports.liveTitle")}</span>
+            <span className="reports-hero-stats-period">{periodLabel}</span>
+          </div>
+
+          <div className="reports-hero-stats" role="list" aria-label={t("reports.liveTitle")}>
           <div className="reports-hero-stat reports-hero-stat--revenue" role="listitem">
             <div className="reports-hero-stat-head">
               <span className="reports-hero-stat-icon">
@@ -761,6 +780,7 @@ export const Reports: React.FC<ReportsProps> = ({
             <span className="reports-hero-stat-meta">
               {t("reports.skusOut", { count: stats.criticalStockCount })}
             </span>
+          </div>
           </div>
         </div>
       </section>

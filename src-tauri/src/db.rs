@@ -823,6 +823,105 @@ pub fn quarantine_invalid_tmp(db_path: &Path) {
   }
 }
 
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSqlResult {
+  pub columns: Vec<String>,
+  pub rows: Vec<Vec<Value>>,
+  pub row_count: usize,
+  pub truncated: bool,
+  pub sql_executed: String,
+}
+
+const SQL_FORBIDDEN: &[&str] = &[
+  "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "REPLACE", "ATTACH", "DETACH",
+  "TRUNCATE", "VACUUM", "REINDEX", "GRANT", "REVOKE", "PRAGMA",
+];
+
+fn normalize_readonly_sql(query: &str) -> Result<String, String> {
+  let trimmed = query.trim();
+  if trimmed.is_empty() {
+    return Err("La consulta SQL está vacía.".to_string());
+  }
+
+  if trimmed.contains(';') {
+    return Err("Solo se permite una consulta SQL por ejecución.".to_string());
+  }
+
+  let upper = trimmed.to_uppercase();
+  for token in SQL_FORBIDDEN {
+    if upper.contains(token) {
+      return Err(format!("Operación no permitida en modo lectura: {token}"));
+    }
+  }
+
+  let starts_ok = upper.starts_with("SELECT") || upper.starts_with("WITH");
+  if !starts_ok {
+    return Err("Solo se permiten consultas SELECT o WITH.".to_string());
+  }
+
+  let mut sql = trimmed.to_string();
+  if !upper.contains(" LIMIT ") {
+    sql.push_str(" LIMIT 200");
+  }
+
+  Ok(sql)
+}
+
+fn sqlite_value_to_json(value: rusqlite::types::Value) -> Value {
+  match value {
+    rusqlite::types::Value::Null => Value::Null,
+    rusqlite::types::Value::Integer(v) => Value::from(v),
+    rusqlite::types::Value::Real(v) => {
+      if let Some(num) = serde_json::Number::from_f64(v) {
+        Value::from(num)
+      } else {
+        Value::from(v)
+      }
+    }
+    rusqlite::types::Value::Text(v) => Value::from(v),
+    rusqlite::types::Value::Blob(v) => Value::from(format!("<blob:{} bytes>", v.len())),
+  }
+}
+
+pub fn run_readonly_sql(app: &AppHandle, query: String) -> Result<AgentSqlResult, String> {
+  let sql = normalize_readonly_sql(&query)?;
+  let db_path = get_db_path(app)?;
+  let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+  apply_connection_pragmas(&conn)?;
+
+  let mut stmt = conn.prepare(&sql).map_err(|e| format!("SQL inválido: {e}"))?;
+  let columns: Vec<String> = stmt
+    .column_names()
+    .into_iter()
+    .map(|name| name.to_string())
+    .collect();
+  let col_count = columns.len();
+
+  let mut rows = Vec::new();
+  let mut row_iter = stmt.query([]).map_err(|e| e.to_string())?;
+
+  while let Some(row) = row_iter.next().map_err(|e| e.to_string())? {
+    let mut values = Vec::with_capacity(col_count);
+    for index in 0..col_count {
+      let raw: rusqlite::types::Value = row.get(index).map_err(|e| e.to_string())?;
+      values.push(sqlite_value_to_json(raw));
+    }
+    rows.push(values);
+  }
+
+  let row_count = rows.len();
+  let truncated = row_count >= 200;
+
+  Ok(AgentSqlResult {
+    columns,
+    rows,
+    row_count,
+    truncated,
+    sql_executed: sql,
+  })
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -834,6 +933,14 @@ mod tests {
       .map(|d| d.as_secs())
       .unwrap_or(0);
     std::env::temp_dir().join(format!("nifty_test_{name}_{stamp}.db"))
+  }
+
+  #[test]
+  fn readonly_sql_rejects_writes_and_appends_limit() {
+    assert!(normalize_readonly_sql("SELECT code FROM products").unwrap().contains("LIMIT"));
+    assert!(normalize_readonly_sql("SELECT code FROM products LIMIT 10").unwrap().contains("LIMIT 10"));
+    assert!(normalize_readonly_sql("DELETE FROM products").is_err());
+    assert!(normalize_readonly_sql("SELECT 1; SELECT 2").is_err());
   }
 
   #[test]

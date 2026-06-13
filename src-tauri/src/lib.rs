@@ -2,7 +2,8 @@ mod db;
 
 use db::{
   atomic_save, get_db_path, get_health, load_with_recovery, quarantine_invalid_tmp,
-  try_migrate_from_legacy_locations, LoadDbResponse, SaveDbResponse, DbHealth,
+  run_readonly_sql, try_migrate_from_legacy_locations, AgentSqlResult, LoadDbResponse,
+  SaveDbResponse, DbHealth,
 };
 use std::fs;
 use tauri::{AppHandle, Manager};
@@ -45,6 +46,11 @@ fn read_binary_file(path: String) -> Result<Vec<u8>, String> {
   fs::read(&path).map_err(|e| format!("No se pudo leer el archivo: {e}"))
 }
 
+#[tauri::command]
+fn agent_run_readonly_sql(app: AppHandle, query: String) -> Result<AgentSqlResult, String> {
+  run_readonly_sql(&app, query)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -66,7 +72,13 @@ pub fn run() {
       }
       Ok(())
     })
-    .invoke_handler(tauri::generate_handler![load_db, save_db, get_db_health, read_binary_file])
+    .invoke_handler(tauri::generate_handler![
+      load_db,
+      save_db,
+      get_db_health,
+      read_binary_file,
+      agent_run_readonly_sql
+    ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }
